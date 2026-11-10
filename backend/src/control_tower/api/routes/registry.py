@@ -1,8 +1,9 @@
 """Agents, environments, the operation catalogue and the policy matrix."""
 
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Path, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -17,10 +18,11 @@ from control_tower.api.schemas import (
     PolicyCell,
     PolicyMatrix,
     PolicyRow,
+    PolicyUpdate,
 )
 from control_tower.core.enums import AgentStatus, AuditActorType, EnvironmentKind
 from control_tower.core.operations import OperationSpec
-from control_tower.core.policy import PolicyRequest, decide
+from control_tower.core.policy import PolicyRequest, decide, violates_production_guardrail
 from control_tower.logging import get_logger
 from control_tower.persistence.audit import record_event
 from control_tower.persistence.models import Agent, Environment, PolicyRule
@@ -202,3 +204,84 @@ def policy_matrix(_: CurrentOperator, session: DbSession, catalog: Catalog) -> P
             )
         rows.append(PolicyRow(operation=operation_out(spec), cells=cells))
     return PolicyMatrix(environment_kinds=kinds, rows=rows)
+
+
+@router.put(
+    "/policies/{operation_key}/{environment_kind}",
+    response_model=PolicyCell,
+    summary="Change an operation policy",
+)
+def update_policy(
+    operation_key: Annotated[str, Path(min_length=1, max_length=120)],
+    environment_kind: EnvironmentKind,
+    body: PolicyUpdate,
+    operator: CurrentOperator,
+    session: DbSession,
+    catalog: Catalog,
+    clock: AppClock,
+    correlation_id: CorrelationId,
+) -> PolicyCell:
+    spec = catalog.get(operation_key)
+    if spec is None:
+        raise HTTPException(422, "Unknown operation.")
+    if violates_production_guardrail(spec.risk, environment_kind):
+        raise HTTPException(403, "The production guardrail is not configurable.")
+    rule = session.scalar(
+        select(PolicyRule)
+        .where(
+            PolicyRule.operation_key == operation_key,
+            PolicyRule.environment_kind == environment_kind,
+        )
+        .with_for_update()
+    )
+    previous = rule.effect.value if rule is not None else None
+    now = clock()
+    if rule is None:
+        rule = PolicyRule(
+            operation_key=operation_key,
+            environment_kind=environment_kind,
+            effect=body.effect,
+            updated_at=now,
+            updated_by=operator.username,
+        )
+        session.add(rule)
+    else:
+        rule.effect = body.effect
+        rule.updated_at = now
+        rule.updated_by = operator.username
+    try:
+        session.flush()
+        record_event(
+            session,
+            "policy.updated",
+            actor_type=AuditActorType.OPERATOR,
+            actor_id=operator.id,
+            correlation_id=correlation_id,
+            occurred_at=now,
+            details={
+                "operation_key": operation_key,
+                "environment_kind": environment_kind.value,
+                "previous_effect": previous,
+                "effect": body.effect.value,
+            },
+        )
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(409, "Policy changed concurrently. Reload and try again.") from exc
+    decision = decide(
+        PolicyRequest(
+            agent_active=True,
+            agent_granted_operations=frozenset({spec.key}),
+            operation_key=spec.key,
+            risk=spec.risk,
+            environment_kind=environment_kind,
+        ),
+        {(operation_key, environment_kind): body.effect},
+    )
+    return PolicyCell(
+        environment_kind=environment_kind,
+        configured=body.effect,
+        effective=decision.effect,
+        reason=decision.reason,
+    )

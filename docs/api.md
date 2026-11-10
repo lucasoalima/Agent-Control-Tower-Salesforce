@@ -95,8 +95,23 @@ Authentication: session cookie from `POST /auth/login`.
 | `GET /environments` | Target environments. |
 | `GET /operations` | Operation catalogue with parameter schemas. |
 | `GET /policies` | Matrix of configured and effective policy per operation and environment kind. |
+| `PUT /policies/{operation_key}/{environment_kind}` | Set an operation policy; operator session required. |
 | `GET /executions` | Search. Query: `status` (repeatable), `agent_id`, `environment_id`, `operation`, `q`, `limit` (≤100), `offset`. |
 | `GET /executions/{id}` | Full record including parameters, result and error. |
+
+### Policy editing
+
+PUT accepts `{"effect": "ALLOW"}` only. Valid effects are ALLOW, REQUIRE_APPROVAL
+and DENY. HTTP 200 returns the configured and effective PolicyCell. A missing rule
+is created. Each successful write records a `policy.updated` event with the
+operator, correlation ID, operation, environment kind, previous effect (null
+for a new rule) and new effect, in the same transaction.
+
+Unknown operations, invalid environment kinds, invalid effects and extra fields
+return 422. Non-read production cells are fixed: every write to them returns
+403, including a request to set DENY. Cookie-authenticated writes use the same
+Origin check as the other management endpoints. A conflicting concurrent insert
+returns 409 without changing the rule or recording a successful policy write.
 
 ## Health
 

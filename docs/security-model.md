@@ -92,10 +92,11 @@ stored in redacted form.
 ## Known limitations
 
 - **No approval decisions yet.** Requests that need approval can only wait.
-- **Policies cannot be edited through the API or UI yet.** Audit events cover
-  successful, failed and throttled logins, logout, agent registration and status
-  changes, seeded policies and pending approval requests. Decision and
-  policy-editing events arrive with those features.
+- **Policy editing is available through the operator API.** Every write to a
+  non-read production cell is rejected. Policy changes and their previous
+  values are audited in the same transaction. Dashboard editing controls are pending.
+  Audit events also cover authentication, agent management, seeded policies
+  and pending approval requests; approval decisions are still pending.
 - **Audit events are append-only for ordinary SQL writes.** PostgreSQL rejects
   UPDATE, DELETE and TRUNCATE. The application has an insert helper only, and
   inserts events in the state-changing transaction. Credentials are never

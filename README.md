@@ -99,7 +99,8 @@ Running without Docker is described in [docs/development-guide.md](docs/developm
 | Dashboard: overview, agents, approval queue, history, policies    | Working, read-only   |
 | Approve / reject with hash-bound, expiring, single-use approvals  | **Phase 2**          |
 | Append-only audit events (Phase 2 foundation)                    | Working              |
-| Policy editing and approval audit events                        | **Phase 2**          |
+| Policy editing API with audited changes                         | Working              |
+| Dashboard policy editing and approval decisions                 | **Phase 2**          |
 | MCP server, real Salesforce adapter                               | **Phase 3**          |
 | Evaluation lab, metrics, OpenTelemetry                            | **Phase 4**          |
 

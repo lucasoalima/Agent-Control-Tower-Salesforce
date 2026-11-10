@@ -89,6 +89,11 @@ class AgentStatusUpdate(BaseModel):
     status: AgentStatus
 
 
+class PolicyUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    effect: PolicyEffect
+
+
 class OperationOut(BaseModel):
     key: str
     platform: str

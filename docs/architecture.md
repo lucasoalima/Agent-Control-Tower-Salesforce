@@ -174,7 +174,7 @@ class PlatformAdapter(Protocol):
 ## Planned (not built)
 
 - **Phase 2:** approval decisions bound to the action fingerprint, with expiry
-  and single use; policy editing; audit events for those new actions.
+  and single use; policy editing in the dashboard; audit events for approval decisions.
 - **Phase 3:** MCP server exposing the catalogue as tools and calling the
   gateway API; Salesforce adapter (read-only first).
 - **Phase 4:** evaluation lab, metrics, OpenTelemetry.

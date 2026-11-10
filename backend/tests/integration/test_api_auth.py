@@ -25,6 +25,7 @@ OPERATOR_ENDPOINTS = [
     ("GET", "/environments"),
     ("GET", "/operations"),
     ("GET", "/policies"),
+    ("PUT", "/policies/{operation_key}/{environment_kind}"),
     ("GET", "/executions"),
     ("GET", "/executions/00000000-0000-0000-0000-000000000000"),
     ("POST", "/auth/logout"),
