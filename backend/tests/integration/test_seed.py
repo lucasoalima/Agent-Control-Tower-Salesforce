@@ -1,5 +1,6 @@
 from collections import Counter
 
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -18,10 +19,11 @@ def settings(**overrides: object) -> Settings:
     return Settings(_env_file=None, **overrides)  # type: ignore[call-arg, arg-type]
 
 
+@pytest.mark.parametrize("operator_password", [None, ""])
 def test_seed_creates_reference_data_and_is_idempotent(
-    db: Session, catalog: OperationCatalog
+    db: Session, catalog: OperationCatalog, operator_password: str | None
 ) -> None:
-    report = seed(db, catalog, settings())
+    report = seed(db, catalog, settings(operator_password=operator_password))
 
     assert db.scalar(select(func.count()).select_from(Environment)) == 3
     assert db.scalar(select(func.count()).select_from(PolicyRule)) == 24
@@ -36,8 +38,9 @@ def test_seed_creates_reference_data_and_is_idempotent(
     assert operator is not None and report.operator_password is not None
     assert len(report.operator_password) >= 20, "generated passwords are long"
     assert verify_password(operator.password_hash, report.operator_password)
+    assert not verify_password(operator.password_hash, "")
 
-    again = seed(db, catalog, settings())
+    again = seed(db, catalog, settings(operator_password=operator_password))
     assert again.created == [] and again.agent_tokens == {} and again.operator_password is None
     assert db.scalar(select(func.count()).select_from(PolicyRule)) == 24
 
@@ -66,3 +69,15 @@ def test_simulation_produces_every_kind_of_outcome(
         ExecutionStatus.PENDING_APPROVAL: 2,
         ExecutionStatus.DENIED: 5,
     }
+
+
+def test_seed_generates_password_when_environment_is_empty(
+    db: Session, catalog: OperationCatalog, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ACT_OPERATOR_PASSWORD", "")
+    report = seed(db, catalog, settings())
+    operator = db.scalar(select(Operator))
+    assert operator is not None and report.operator_password is not None
+    assert len(report.operator_password) >= 20
+    assert verify_password(operator.password_hash, report.operator_password)
+    assert not verify_password(operator.password_hash, "")

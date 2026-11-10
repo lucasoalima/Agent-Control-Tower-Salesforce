@@ -51,6 +51,10 @@ The backend reads `ACT_*` variables from the environment or from `backend/.env`.
 decisions and records but does not exercise token authentication. Mock
 organisation state lives in the memory of the process that ran the operation.
 
+An empty `ACT_OPERATOR_PASSWORD` is treated as unset, so `act seed` generates a
+random password. A non-empty configured password must have at least 12
+characters; it is used as supplied and is not printed.
+
 ## Tests
 
 ```bash

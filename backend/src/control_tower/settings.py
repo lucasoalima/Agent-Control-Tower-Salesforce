@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # set, a random one is generated and printed once.
     operator_username: str = "operator"
     operator_password: SecretStr | None = None
+
+    @field_validator("operator_password")
+    @classmethod
+    def empty_operator_password_is_unset(cls, value: SecretStr | None) -> SecretStr | None:
+        return value if value is not None and value.get_secret_value() else None
 
     @property
     def allowed_origin_set(self) -> frozenset[str]:
