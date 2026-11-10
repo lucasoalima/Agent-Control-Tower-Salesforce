@@ -1,0 +1,48 @@
+# Local development stack. Not a production deployment.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-act}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-act_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-act}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      ACT_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-act}:${POSTGRES_PASSWORD:-act_dev_password}@db:5432/${POSTGRES_DB:-act}
+      ACT_ALLOWED_ORIGINS: ${ACT_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      ACT_OPERATOR_USERNAME: ${ACT_OPERATOR_USERNAME:-operator}
+      ACT_OPERATOR_PASSWORD: ${ACT_OPERATOR_PASSWORD:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/readyz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  frontend:
+    build: ./frontend
+    environment:
+      ACT_BACKEND_URL: http://backend:8000
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  db-data:

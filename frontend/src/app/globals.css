@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/*
+  Tokens. The palette is cool and quiet so that the only saturated colour on a
+  page is information: green, amber and red mean "allowed", "needs approval"
+  and "blocked", and nothing else.
+*/
+:root {
+  --ground: #e9edf1;
+  --surface: #f8fafb;
+  --raised: #ffffff;
+  --ink: #18222d;
+  --muted: #56636f;
+  --line: #cbd3db;
+  --accent: #23479a;
+  --allow: #1c7a4c;
+  --approval: #91570a;
+  --deny: #b4281f;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #10161c;
+    --surface: #18212a;
+    --raised: #1f2a35;
+    --ink: #e6ebf0;
+    --muted: #98a5b1;
+    --line: #2f3b47;
+    --accent: #8fb0f2;
+    --allow: #5fc592;
+    --approval: #e3a546;
+    --deny: #f0847b;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-allow: var(--allow);
+  --color-approval: var(--approval);
+  --color-deny: var(--deny);
+  --font-sans: "B612", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
