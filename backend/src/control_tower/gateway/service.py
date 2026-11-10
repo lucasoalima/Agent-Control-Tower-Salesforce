@@ -16,6 +16,7 @@ the middle of an operation still leaves evidence that it was started.
 """
 
 import uuid
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
@@ -39,7 +40,7 @@ from control_tower.core.ports import AdapterError, Clock, PlatformAdapter, Targe
 from control_tower.core.redaction import contains_secret, redact
 from control_tower.logging import get_logger
 from control_tower.persistence.audit import record_event
-from control_tower.persistence.models import Agent, Environment, Execution, PolicyRule
+from control_tower.persistence.models import Agent, AuditEvent, Environment, Execution, PolicyRule
 from control_tower.platforms.registry import AdapterRegistry
 
 log = get_logger(__name__)
@@ -47,6 +48,19 @@ log = get_logger(__name__)
 MAX_OPERATION_KEY_LENGTH = 120
 MAX_REFUSED_PAYLOAD_BYTES = 16_384
 MAX_DETAIL_LENGTH = 2_000
+
+
+@dataclass(frozen=True, slots=True)
+class ApprovalBinding:
+    action_hash: str
+    agent_id: uuid.UUID
+    environment_id: uuid.UUID
+
+
+class ApprovalError(Exception):
+    def __init__(self, message: str, status_code: int = 409) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class Gateway:
@@ -154,6 +168,190 @@ class Gateway:
             return execution
 
         return self._execute(execution, adapter, spec, params)
+
+    def approve(
+        self,
+        execution_id: uuid.UUID,
+        binding: ApprovalBinding,
+        operator_id: uuid.UUID,
+        correlation_id: str,
+    ) -> Execution:
+        execution = self._approval_row(execution_id, binding, ExecutionStatus.PENDING_APPROVAL)
+        self._approval_context(execution)
+        lifecycle.assert_transition(execution.status, ExecutionStatus.APPROVED)
+        execution.status = ExecutionStatus.APPROVED
+        self._approval_event("approval.approved", execution, operator_id, correlation_id)
+        self._session.commit()
+        return execution
+
+    def reject(
+        self,
+        execution_id: uuid.UUID,
+        binding: ApprovalBinding,
+        operator_id: uuid.UUID,
+        correlation_id: str,
+    ) -> Execution:
+        execution = self._approval_row(execution_id, binding, ExecutionStatus.PENDING_APPROVAL)
+        lifecycle.assert_transition(execution.status, ExecutionStatus.REJECTED)
+        execution.status = ExecutionStatus.REJECTED
+        execution.finished_at = self._clock()
+        self._approval_event("approval.rejected", execution, operator_id, correlation_id)
+        self._session.commit()
+        return execution
+
+    def execute_approved(
+        self,
+        execution_id: uuid.UUID,
+        binding: ApprovalBinding,
+        operator_id: uuid.UUID,
+        correlation_id: str,
+    ) -> Execution:
+        execution = self._approval_row(execution_id, binding, ExecutionStatus.APPROVED)
+        approval = self._session.scalar(
+            select(AuditEvent)
+            .where(
+                AuditEvent.execution_id == execution.id,
+                AuditEvent.action == "approval.approved",
+                AuditEvent.actor_type == AuditActorType.OPERATOR,
+            )
+            .order_by(AuditEvent.occurred_at.desc(), AuditEvent.id.desc())
+            .limit(1)
+        )
+        if approval is None or approval.details != self._approval_details(execution):
+            raise ApprovalError("No approval matches this stored action.")
+        adapter, spec, params = self._approval_context(execution)
+        lifecycle.assert_transition(execution.status, ExecutionStatus.EXECUTING)
+        self._approval_event("approval.consumed", execution, operator_id, correlation_id)
+        return self._execute(execution, adapter, spec, params)
+
+    def _approval_row(
+        self,
+        execution_id: uuid.UUID,
+        binding: ApprovalBinding,
+        expected_status: ExecutionStatus,
+    ) -> Execution:
+        execution = self._session.scalar(
+            select(Execution)
+            .where(Execution.id == execution_id)
+            .with_for_update(of=Execution)
+            .execution_options(populate_existing=True)
+        )
+        if execution is None:
+            raise ApprovalError("Execution not found.", 404)
+        if execution.status is not expected_status:
+            raise ApprovalError("The execution is no longer in the required approval state.")
+        deadline = execution.approval_expires_at
+        now = self._clock()
+        if deadline is None:
+            raise ApprovalError("The request has no approval deadline.")
+        if deadline <= now:
+            lifecycle.assert_transition(execution.status, ExecutionStatus.EXPIRED)
+            execution.status = ExecutionStatus.EXPIRED
+            execution.finished_at = now
+            record_event(
+                self._session,
+                "approval.expired",
+                actor_type=AuditActorType.SYSTEM,
+                actor_id=None,
+                correlation_id=execution.correlation_id,
+                occurred_at=now,
+                execution_id=execution.id,
+                details={"action_hash": execution.action_hash, "expires_at": deadline.isoformat()},
+            )
+            self._session.commit()
+            raise ApprovalError("The approval request has expired.")
+        fingerprint = action_fingerprint(
+            agent_id=execution.agent_id,
+            environment_id=execution.environment_id,
+            operation_key=execution.operation_key,
+            parameters=execution.parameters,
+        )
+        if (
+            binding.action_hash != execution.action_hash
+            or binding.action_hash != fingerprint
+            or binding.agent_id != execution.agent_id
+            or binding.environment_id != execution.environment_id
+        ):
+            raise ApprovalError("The supplied binding does not match the stored action.")
+        requested = self._session.scalar(
+            select(AuditEvent)
+            .where(
+                AuditEvent.execution_id == execution.id,
+                AuditEvent.action == "approval.requested",
+                AuditEvent.actor_type == AuditActorType.AGENT,
+            )
+            .limit(1)
+        )
+        details = self._approval_details(execution)
+        if requested is None or any(
+            requested.details.get(key) != value for key, value in details.items()
+        ):
+            raise ApprovalError("The stored action no longer matches its original request.")
+        return execution
+
+    def _approval_context(
+        self, execution: Execution
+    ) -> tuple[PlatformAdapter, OperationSpec, OperationParams]:
+        agent = self._session.scalar(
+            select(Agent)
+            .where(Agent.id == execution.agent_id)
+            .with_for_update(of=Agent)
+            .execution_options(populate_existing=True)
+        )
+        assert agent is not None
+        environment = execution.environment
+        if agent.environment_id != execution.environment_id:
+            raise ApprovalError("The agent is no longer bound to this environment.")
+        spec = self._catalog.get(execution.operation_key)
+        adapter = self._adapters.get(environment.adapter_key)
+        refusal = self._intake_refusal(agent, environment, execution.operation_key, spec, adapter)
+        if refusal is not None:
+            raise ApprovalError("The stored action is no longer eligible for execution.")
+        assert spec is not None and adapter is not None
+        decision = decide(
+            PolicyRequest(
+                agent_active=agent.status is AgentStatus.ACTIVE,
+                agent_granted_operations=frozenset(agent.granted_operations),
+                operation_key=spec.key,
+                risk=spec.risk,
+                environment_kind=environment.kind,
+            ),
+            self._rules_for(spec.key),
+        )
+        if decision.effect is PolicyEffect.DENY:
+            raise ApprovalError("Current policy refuses this stored action.")
+        params, invalid = self._validate(spec, execution.parameters)
+        if invalid is not None or params is None or params.canonical() != execution.parameters:
+            raise ApprovalError("The stored parameters are no longer valid and canonical.")
+        return adapter, spec, params
+
+    @staticmethod
+    def _approval_details(execution: Execution) -> dict[str, Any]:
+        return {
+            "action_hash": execution.action_hash,
+            "agent_id": str(execution.agent_id),
+            "environment_id": str(execution.environment_id),
+            "operation_key": execution.operation_key,
+            "expires_at": (
+                execution.approval_expires_at.isoformat()
+                if execution.approval_expires_at is not None
+                else None
+            ),
+        }
+
+    def _approval_event(
+        self, action: str, execution: Execution, operator_id: uuid.UUID, correlation_id: str
+    ) -> None:
+        record_event(
+            self._session,
+            action,
+            actor_type=AuditActorType.OPERATOR,
+            actor_id=operator_id,
+            correlation_id=correlation_id,
+            occurred_at=self._clock(),
+            execution_id=execution.id,
+            details=self._approval_details(execution),
+        )
 
     # -- intake ------------------------------------------------------------
 

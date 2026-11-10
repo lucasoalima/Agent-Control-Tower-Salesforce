@@ -97,7 +97,7 @@ Running without Docker is described in [docs/development-guide.md](docs/developm
 | Mock Salesforce adapter (8 operations, inspectable state)         | Working, tested      |
 | Operator sign-in, agent tokens, strict separation of the two      | Working, tested      |
 | Dashboard: overview, agents, approval queue, history, policies    | Working, read-only   |
-| Approve / reject with hash-bound, expiring, single-use approvals  | **Phase 2**          |
+| Approval API with hash-bound, expiring, single-use decisions     | Working              |
 | Append-only audit events (Phase 2 foundation)                    | Working              |
 | Policy editing API with audited changes                         | Working              |
 | Background expiry and unknown-outcome reconciliation             | Working              |
@@ -105,9 +105,10 @@ Running without Docker is described in [docs/development-guide.md](docs/developm
 | MCP server, real Salesforce adapter                               | **Phase 3**          |
 | Evaluation lab, metrics, OpenTelemetry                            | **Phase 4**          |
 
-Approval requests remain paused until a human-decision endpoint is added, or
-expire automatically at their stored deadline. Stale running executions are
-marked as having an unknown outcome and are never retried automatically.
+Operators can approve or reject requests through the API. Unused approvals
+expire at their stored deadline. Dashboard controls are still pending. Stale
+running executions are marked as having an unknown outcome and are never
+retried automatically.
 
 ## Verification
 

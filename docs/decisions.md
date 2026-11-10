@@ -160,3 +160,37 @@ S.APPROVED: frozenset({S.EXECUTING, S.EXPIRED}),  # An unused approval can expir
 
 The core remains free of I/O. The lifespan owns the worker, its database pool
 and shutdown; maintenance events are committed with the state change.
+
+## 16. Bind approval to immutable evidence and consume it under a row lock
+
+Lucas requested on 10 November 2026: "The approval is bound to the exact action:
+execution id, action_hash, agent, target environment. Approving never creates a
+different payload."
+
+The operator supplies the displayed hash, agent and environment IDs; the URL
+selects the execution. An approval is an immutable audit event rather than a
+second mutable grant table. The original request event, canonical fingerprint
+and fixed deadline must still match. A second event records consumption in the
+same transaction as EXECUTING, committed before any adapter side effect.
+
+Approval is committed before dispatch. An interrupted dispatch can be resumed
+explicitly while APPROVED and unexpired. A competing caller may consume it first;
+the loser receives a conflict. Neither path retries a running or terminal action.
+
+Current agent status, grants, environment binding, policy and parameter schema
+are checked again at approval and dispatch. Human approval cannot override the
+production guardrail. Rejection does not require continued execution eligibility.
+
+Original, backend/src/control_tower/gateway/service.py, submit, line 154:
+
+```python
+return execution  # Pending requests were persisted without a decision path.
+```
+
+Updated, the same file, approve, line 182:
+
+```python
+execution.status = ExecutionStatus.APPROVED  # Bind the human decision before dispatch.
+self._approval_event("approval.approved", execution, operator_id, correlation_id)  # Retain who approved.
+self._session.commit()  # Persist the grant so interrupted dispatch can be resumed explicitly.
+```

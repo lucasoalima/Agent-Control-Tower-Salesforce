@@ -98,6 +98,10 @@ Authentication: session cookie from `POST /auth/login`.
 | `PUT /policies/{operation_key}/{environment_kind}` | Set an operation policy; operator session required. |
 | `GET /executions` | Search. Query: `status` (repeatable), `agent_id`, `environment_id`, `operation`, `q`, `limit` (≤100), `offset`. |
 | `GET /executions/{id}` | Full record including parameters, result and error. |
+| `POST /executions/{id}/approve` | Approve and dispatch the exact stored action. |
+| `POST /executions/{id}/reject` | Reject a pending request without executing it. |
+| `POST /executions/{id}/execute` | Explicitly dispatch an existing unused approval. |
+| `GET /executions/{id}/audit-events` | Newest events first; limit defaults to 50, maximum 100. |
 
 ### Policy editing
 
@@ -112,6 +116,31 @@ return 422. Non-read production cells are fixed: every write to them returns
 403, including a request to set DENY. Cookie-authenticated writes use the same
 Origin check as the other management endpoints. A conflicting concurrent insert
 returns 409 without changing the rule or recording a successful policy write.
+
+### Approval decisions
+
+Approve, reject and execute accept only action_hash (64 lowercase hexadecimal
+characters), agent_id and environment_id. The execution ID is in the URL.
+No operation or replacement parameters are accepted. The supplied binding must
+match the stored canonical action and its immutable request event, including
+the stored deadline. Legacy requests without this evidence cannot be approved;
+submit a new request for review.
+
+Approve commits an approval event and APPROVED state, then dispatches the stored
+action. Execute allows an operator to explicitly resume an unused APPROVED
+request if dispatch was interrupted; it is not an automatic retry. Both paths
+lock the execution and recheck the agent, grants, environment, current policy,
+parameter validation, immutable approval binding and deadline. EXECUTING and
+the consumption event are committed before the adapter call.
+
+HTTP 200 returns ExecutionDetail, including COMPLETED or FAILED after dispatch,
+or REJECTED after rejection. Missing records return 404. State conflicts,
+expired deadlines, binding mismatches and eligibility failures return 409.
+Malformed bindings and extra fields return 422. Agent tokens and anonymous
+callers receive 401; disallowed Origins receive 403. Approval and consumption
+are separate transactions: a concurrent execute can consume an approval before
+the approving call dispatches. The losing call receives 409 and should refresh
+the execution, not resubmit the action.
 
 ### Approval deadlines and unknown outcomes
 

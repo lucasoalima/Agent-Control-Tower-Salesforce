@@ -28,6 +28,10 @@ OPERATOR_ENDPOINTS = [
     ("PUT", "/policies/{operation_key}/{environment_kind}"),
     ("GET", "/executions"),
     ("GET", "/executions/00000000-0000-0000-0000-000000000000"),
+    ("POST", "/executions/00000000-0000-0000-0000-000000000000/approve"),
+    ("POST", "/executions/00000000-0000-0000-0000-000000000000/reject"),
+    ("POST", "/executions/00000000-0000-0000-0000-000000000000/execute"),
+    ("GET", "/executions/00000000-0000-0000-0000-000000000000/audit-events"),
     ("POST", "/auth/logout"),
 ]
 AGENT_ENDPOINTS = [

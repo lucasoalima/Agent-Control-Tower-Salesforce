@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from control_tower.core.enums import (
     AgentProvider,
     AgentStatus,
+    AuditActorType,
     DecisionReason,
     EnvironmentKind,
     ExecutionStatus,
@@ -162,6 +163,24 @@ class ExecutionDetail(ExecutionSummary):
     parameters: dict[str, Any]
     result: dict[str, Any] | None
     error: dict[str, Any] | None
+
+
+class ApprovalDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action_hash: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    agent_id: uuid.UUID
+    environment_id: uuid.UUID
+
+
+class AuditEventOut(ApiModel):
+    id: uuid.UUID
+    occurred_at: datetime
+    action: str
+    actor_type: AuditActorType
+    actor_id: uuid.UUID | None
+    correlation_id: str
+    execution_id: uuid.UUID | None
+    details: dict[str, Any]
 
 
 class ExecutionPage(BaseModel):

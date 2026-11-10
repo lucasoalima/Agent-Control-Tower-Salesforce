@@ -91,8 +91,11 @@ stored in redacted form.
 
 ## Known limitations
 
-- **Human approval and rejection endpoints are not built yet.** Waiting and
-  approved requests expire at their stored deadlines.
+- **Approval decisions are available through the operator API.** Agent tokens
+  cannot approve, reject or dispatch approvals. Every decision binds the
+  execution, hash, agent and environment. Dispatch consumes the immutable
+  approval under a row lock, rechecks current eligibility and uses only stored
+  parameters. Dashboard decision controls are still pending.
 - **Policy editing is available through the operator API.** Every write to a
   non-read production cell is rejected. Policy changes and their previous
   values are audited in the same transaction. Dashboard editing controls are pending.

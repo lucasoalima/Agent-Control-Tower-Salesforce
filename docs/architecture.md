@@ -110,7 +110,15 @@ stateDiagram-v2
 
 `DENIED` is outside the approval lifecycle on purpose: it has no outgoing
 transition, so a denied request can never become an executed one. The
-approval and rejection endpoints remain to be built. Background maintenance
+operator-only approval and rejection endpoints use these transitions. Approval
+commits APPROVED with an immutable bound audit event, then dispatch reacquires
+the execution row lock. It verifies the grant, original request and current
+eligibility before committing EXECUTING and approval consumption together.
+Only stored canonical parameters reach the adapter. Competing approval or
+execute calls cannot consume the same approval twice.
+
+An explicit execute endpoint can resume an unused approval after an interrupted
+dispatch. It never retries EXECUTING or terminal records. Background maintenance
 expires waiting or approved requests whose stored deadline has elapsed.
 
 The API lifespan starts a maintenance thread with separate sessions. Each tick
