@@ -91,7 +91,8 @@ stored in redacted form.
 
 ## Known limitations
 
-- **No approval decisions yet.** Requests that need approval can only wait.
+- **Human approval and rejection endpoints are not built yet.** Waiting and
+  approved requests expire at their stored deadlines.
 - **Policy editing is available through the operator API.** Every write to a
   non-read production cell is rejected. Policy changes and their previous
   values are audited in the same transaction. Dashboard editing controls are pending.
@@ -104,9 +105,11 @@ stored in redacted form.
 - **Secret detection is pattern-based.** It recognises Salesforce session
   tokens, CLI auth URLs, bearer tokens, JWTs, PEM private keys and this
   project's own tokens. It will miss secrets with no recognisable shape.
-- **Crash window.** If the process dies between the adapter finishing and the
-  result being committed, the record stays `EXECUTING`. It shows that something
-  started; it does not show the outcome. There is no reconciliation job yet.
+- **Crash window.** If the process dies before committing the adapter result,
+  the record stays EXECUTING. Maintenance flags stale rows as requiring
+  reconciliation, with an unknown outcome. It does not retry or invent a
+  result. A long-running call can also reach this threshold; a real adapter
+  response clears the marker. Operators still need to verify unresolved cases.
 - **Login throttling is in memory,** per process. It does not survive a restart
   or span multiple instances.
 - **One operator role.** No roles, no multi-factor authentication, no SSO.

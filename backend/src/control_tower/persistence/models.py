@@ -173,6 +173,8 @@ class Execution(Base):
     decided_at: Mapped[datetime]
     started_at: Mapped[datetime | None]
     finished_at: Mapped[datetime | None]
+    approval_expires_at: Mapped[datetime | None]
+    reconciliation_required_at: Mapped[datetime | None]
 
     agent: Mapped[Agent] = relationship(lazy="joined")
     environment: Mapped[Environment] = relationship(lazy="joined")

@@ -55,6 +55,24 @@ An empty `ACT_OPERATOR_PASSWORD` is treated as unset, so `act seed` generates a
 random password. A non-empty configured password must have at least 12
 characters; it is used as supplied and is not printed.
 
+## Governance maintenance
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| ACT_APPROVAL_TTL_SECONDS | 300 | Fixed lifetime for new approval requests, including CLI simulation |
+| ACT_MAINTENANCE_INTERVAL_SECONDS | 10 | Interval between background maintenance ticks |
+| ACT_EXECUTION_STALE_AFTER_SECONDS | 300 | Age after which a running execution needs reconciliation |
+| ACT_MAINTENANCE_ENABLED | true | Start the maintenance thread with the API lifespan |
+
+Migration 0003 assigns legacy waiting or approved requests a deadline of their
+original request time plus 300 seconds. Old requests can therefore expire on the
+first tick. No historical audit events are invented. Running executions are
+never expired or retried by this worker.
+
+The isolated PostgreSQL test fixture creates and drops a generated act_test_
+schema only inside act_test. It applies real migrations and permits independent
+connections for row-lock tests.
+
 ## Tests
 
 ```bash

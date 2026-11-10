@@ -92,9 +92,13 @@ SCRIPT: list[tuple[str, str, dict[str, Any]]] = [
 
 
 def simulate(
-    session: Session, catalog: OperationCatalog, adapters: AdapterRegistry
+    session: Session,
+    catalog: OperationCatalog,
+    adapters: AdapterRegistry,
+    *,
+    approval_ttl_seconds: int = 300,
 ) -> list[Execution]:
-    gateway = Gateway(session, catalog, adapters)
+    gateway = Gateway(session, catalog, adapters, approval_ttl_seconds=approval_ttl_seconds)
     agents = {a.name: a for a in session.scalars(select(Agent))}
     missing = {name for name, _, _ in SCRIPT} - agents.keys()
     if missing:

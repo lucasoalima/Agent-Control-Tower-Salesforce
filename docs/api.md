@@ -113,6 +113,19 @@ return 422. Non-read production cells are fixed: every write to them returns
 Origin check as the other management endpoints. A conflicting concurrent insert
 returns 409 without changing the rule or recording a successful policy write.
 
+### Approval deadlines and unknown outcomes
+
+Execution and tool-request responses include nullable `approval_expires_at`
+and `reconciliation_required_at` timestamps. Pending requests receive a fixed
+deadline at intake; changing the configured TTL does not extend old requests.
+Maintenance transitions PENDING_APPROVAL and APPROVED to EXPIRED at or after
+that deadline, without executing them.
+
+An EXECUTING request past the stale threshold is marked for reconciliation.
+Its status, result and error are preserved. The dashboard shows an unknown
+outcome, and no automatic retry occurs. The marker is cleared only when an
+adapter response is recorded.
+
 ## Health
 
 `GET /healthz` (process is up) and `GET /readyz` (database reachable). No

@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from control_tower.api.deps import (
     Adapters,
     AppClock,
+    AppSettings,
     Catalog,
     CorrelationId,
     CurrentAgent,
@@ -32,6 +33,8 @@ def _response(execution: Execution) -> ToolResponse:
         action_hash=execution.action_hash,
         result=execution.result,
         error=execution.error,
+        approval_expires_at=execution.approval_expires_at,
+        reconciliation_required_at=execution.reconciliation_required_at,
     )
 
 
@@ -49,15 +52,16 @@ def submit_tool_request(
     catalog: Catalog,
     adapters: Adapters,
     clock: AppClock,
+    settings: AppSettings,
     correlation_id: CorrelationId,
 ) -> ToolResponse:
     """The request is always recorded. The HTTP status says whether it was
     *processed* (200) or is *waiting* (202); the outcome is in ``status``.
     A denied request is a 200 with ``status: DENIED``, not a 403: the caller was
     authenticated and the gateway did its job."""
-    execution = Gateway(session, catalog, adapters, clock).submit(
-        agent, body.operation, body.parameters, correlation_id
-    )
+    execution = Gateway(
+        session, catalog, adapters, clock, approval_ttl_seconds=settings.approval_ttl_seconds
+    ).submit(agent, body.operation, body.parameters, correlation_id)
     if execution.status is ExecutionStatus.PENDING_APPROVAL:
         response.status_code = status.HTTP_202_ACCEPTED
     return _response(execution)

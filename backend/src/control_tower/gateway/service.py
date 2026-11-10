@@ -16,6 +16,7 @@ the middle of an operation still leaves evidence that it was started.
 """
 
 import uuid
+from datetime import timedelta
 from typing import Any
 
 from pydantic import ValidationError
@@ -55,11 +56,14 @@ class Gateway:
         catalog: OperationCatalog,
         adapters: AdapterRegistry,
         clock: Clock = utcnow,
+        *,
+        approval_ttl_seconds: int = 300,
     ) -> None:
         self._session = session
         self._catalog = catalog
         self._adapters = adapters
         self._clock = clock
+        self._approval_ttl_seconds = approval_ttl_seconds
 
     def submit(
         self,
@@ -126,6 +130,8 @@ class Gateway:
 
         if decision.effect is PolicyEffect.REQUIRE_APPROVAL:
             execution.status = ExecutionStatus.PENDING_APPROVAL
+            deadline = execution.decided_at + timedelta(seconds=self._approval_ttl_seconds)
+            execution.approval_expires_at = deadline
             self._session.add(execution)
             record_event(
                 self._session,
@@ -137,6 +143,7 @@ class Gateway:
                 execution_id=execution.id,
                 details={
                     "action_hash": execution.action_hash,
+                    "expires_at": deadline.isoformat(),
                     "agent_id": str(agent.id),
                     "environment_id": str(environment.id),
                     "operation_key": spec.key,
@@ -286,6 +293,9 @@ class Gateway:
         execution.result = redact(result)[0] if result is not None else None
         execution.error = redact(error)[0] if error is not None else None
         execution.finished_at = self._clock()
+        self._session.flush()
+        self._session.refresh(execution, attribute_names=["reconciliation_required_at"])
+        execution.reconciliation_required_at = None
         self._session.commit()
         self._log(execution)
 

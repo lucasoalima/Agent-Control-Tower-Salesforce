@@ -6,6 +6,8 @@
            │                     └─> EXPIRED
            └─> EXECUTING  (policy effect ALLOW)
 
+An approved request may also expire before execution starts.
+
 DENIED is deliberately outside the approval lifecycle: a denied request was
 never a candidate for execution and can never become one.
 """
@@ -16,7 +18,7 @@ INITIAL_STATES: frozenset[S] = frozenset({S.DENIED, S.PENDING_APPROVAL, S.EXECUT
 
 _TRANSITIONS: dict[S, frozenset[S]] = {
     S.PENDING_APPROVAL: frozenset({S.APPROVED, S.REJECTED, S.EXPIRED}),
-    S.APPROVED: frozenset({S.EXECUTING}),
+    S.APPROVED: frozenset({S.EXECUTING, S.EXPIRED}),
     S.EXECUTING: frozenset({S.COMPLETED, S.FAILED}),
     S.DENIED: frozenset(),
     S.REJECTED: frozenset(),

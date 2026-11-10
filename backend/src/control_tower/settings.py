@@ -24,6 +24,11 @@ class Settings(BaseSettings):
 
     max_request_bytes: int = Field(default=1_048_576, ge=1_024)
 
+    approval_ttl_seconds: int = Field(default=300, ge=1, le=86_400)
+    maintenance_interval_seconds: int = Field(default=10, ge=1, le=3_600)
+    execution_stale_after_seconds: int = Field(default=300, ge=1, le=86_400)
+    maintenance_enabled: bool = True
+
     # Used by `act seed` to create the first operator. If the password is not
     # set, a random one is generated and printed once.
     operator_username: str = "operator"

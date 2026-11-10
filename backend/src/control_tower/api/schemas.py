@@ -152,6 +152,8 @@ class ExecutionSummary(ApiModel):
     decided_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    approval_expires_at: datetime | None
+    reconciliation_required_at: datetime | None
 
 
 class ExecutionDetail(ExecutionSummary):
@@ -188,6 +190,8 @@ class ToolRequest(BaseModel):
 
 
 class ToolResponse(ApiModel):
+    approval_expires_at: datetime | None
+    reconciliation_required_at: datetime | None
     execution_id: uuid.UUID
     correlation_id: str
     operation: str

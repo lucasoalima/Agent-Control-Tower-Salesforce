@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
+import { ReconciliationNotice } from "@/components/reconciliation-notice";
 import { ErrorState, JsonBlock, Loading, SectionTitle, Tag, ToneLabel } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { elapsedMs, formatDateTime, formatDuration } from "@/lib/format";
@@ -116,6 +117,8 @@ export default function ExecutionPage() {
           </span>
         </p>
       </header>
+
+      <ReconciliationNotice requiredAt={e.reconciliation_required_at} />
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,3fr)]">
         <div className="flex min-w-0 flex-col gap-7">

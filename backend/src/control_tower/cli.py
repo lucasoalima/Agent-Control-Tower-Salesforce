@@ -61,7 +61,12 @@ def _cmd_simulate(_: argparse.Namespace) -> int:
 
     configure_logging("WARNING", "console")
     with get_sessionmaker()() as session:
-        executions = simulate(session, build_catalog(), build_adapters())
+        executions = simulate(
+            session,
+            build_catalog(),
+            build_adapters(),
+            approval_ttl_seconds=get_settings().approval_ttl_seconds,
+        )
         for e in executions:
             print(
                 f"{e.agent.name:<18} {e.operation_key:<34} "

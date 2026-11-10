@@ -130,3 +130,33 @@ record_event(  # Store the login and its session in the same database transactio
 )
 session.commit()  # Confirm both records together.
 ```
+
+## 15. Expire approvals and reconcile without guessing outcomes
+
+Lucas requested on 10 November 2026: "Background expiry of stale approvals,
+and reconciliation of executions stuck in EXECUTING (mark them clearly; do not
+guess the outcome)."
+
+Requests store their deadline at intake, with a default lifetime of five
+minutes. Legacy waiting records use their original request time plus that
+default. Separate timestamps describe expiry and required reconciliation.
+
+The worker uses bounded, row-locked batches and skips locked rows. It never
+calls adapters. An EXECUTING record is marked as unknown rather than failed,
+and an actual adapter response clears the marker. This preserves uncertainty
+during the crash window without risking a duplicate side effect.
+
+Original, backend/src/control_tower/core/lifecycle.py, _TRANSITIONS, line 19:
+
+```python
+S.APPROVED: frozenset({S.EXECUTING}),  # Approval had no expiry path before dispatch.
+```
+
+Updated, the same transition entry, line 21:
+
+```python
+S.APPROVED: frozenset({S.EXECUTING, S.EXPIRED}),  # An unused approval can expire.
+```
+
+The core remains free of I/O. The lifespan owns the worker, its database pool
+and shutdown; maintenance events are committed with the state change.

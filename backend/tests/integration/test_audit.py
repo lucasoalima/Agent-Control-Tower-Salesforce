@@ -212,6 +212,7 @@ def test_pending_approval_audit_binds_the_stored_action(
     assert event.execution_id == execution.id and event.correlation_id == execution.correlation_id
     assert event.details == {
         "action_hash": execution.action_hash,
+        "expires_at": execution.approval_expires_at.isoformat(),
         "agent_id": str(agent.id),
         "environment_id": str(world.uat.id),
         "operation_key": sf.DEPLOY,

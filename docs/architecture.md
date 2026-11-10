@@ -103,14 +103,21 @@ stateDiagram-v2
     PENDING_APPROVAL --> REJECTED
     PENDING_APPROVAL --> EXPIRED
     APPROVED --> EXECUTING
+    APPROVED --> EXPIRED
     EXECUTING --> COMPLETED
     EXECUTING --> FAILED
 ```
 
 `DENIED` is outside the approval lifecycle on purpose: it has no outgoing
 transition, so a denied request can never become an executed one. The
-transitions out of `PENDING_APPROVAL` are defined and tested, but nothing
-performs them until Phase 2.
+approval and rejection endpoints remain to be built. Background maintenance
+expires waiting or approved requests whose stored deadline has elapsed.
+
+The API lifespan starts a maintenance thread with separate sessions. Each tick
+processes bounded batches with row locks and SKIP LOCKED. Stale EXECUTING rows
+receive a reconciliation timestamp and an audit event. Their outcome stays
+unknown; the worker never calls an adapter or changes them to FAILED.
+A returned adapter result clears the marker in the finishing transaction.
 
 ## Policy evaluation
 

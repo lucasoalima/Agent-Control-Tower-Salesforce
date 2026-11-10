@@ -88,6 +88,8 @@ export interface ExecutionSummary {
   decided_at: string;
   started_at: string | null;
   finished_at: string | null;
+  approval_expires_at: string | null;
+  reconciliation_required_at: string | null;
 }
 
 export interface ExecutionDetail extends ExecutionSummary {

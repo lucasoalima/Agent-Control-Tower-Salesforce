@@ -17,6 +17,7 @@ import pytest
 from alembic import command
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from psycopg import sql
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
@@ -230,3 +231,30 @@ def operator_client(app: FastAPI, operator: Operator) -> TestClient:
 
 def bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def isolated_engine(engine: Engine) -> Iterator[Engine]:
+    """A disposable migrated schema for tests using independent connections."""
+    assert engine.url.database == "act_test"
+    schema = "act_test_" + uuid.uuid4().hex
+    assert schema.startswith("act_test_") and schema != "public"
+    with engine.begin() as connection:
+        raw = connection.connection.driver_connection
+        assert raw is not None
+        with raw.cursor() as cursor:
+            cursor.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
+    url = engine.url.update_query_dict({"options": f"-csearch_path={schema} -clock_timeout=1000"})
+    isolated = create_engine(url, pool_pre_ping=True)
+    try:
+        config = alembic_config(url.render_as_string(hide_password=False))
+        config.attributes["configure_logging"] = False
+        command.upgrade(config, "head")
+        yield isolated
+    finally:
+        isolated.dispose()
+        with engine.begin() as connection:
+            raw = connection.connection.driver_connection
+            assert raw is not None
+            with raw.cursor() as cursor:
+                cursor.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
