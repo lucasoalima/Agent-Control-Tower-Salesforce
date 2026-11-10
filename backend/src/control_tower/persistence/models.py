@@ -24,6 +24,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from control_tower.core.enums import (
     AgentProvider,
     AgentStatus,
+    AuditActorType,
     DecisionReason,
     EnvironmentKind,
     ExecutionStatus,
@@ -175,3 +176,21 @@ class Execution(Base):
 
     agent: Mapped[Agent] = relationship(lazy="joined")
     environment: Mapped[Environment] = relationship(lazy="joined")
+
+
+class AuditEvent(Base):
+    """One immutable governance event, retained independently of its actor."""
+
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        Index("ix_audit_events_execution_id_occurred_at", "execution_id", "occurred_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    occurred_at: Mapped[datetime]
+    action: Mapped[str] = mapped_column(String(64))
+    actor_type: Mapped[AuditActorType] = mapped_column(_enum(AuditActorType, "audit_actor_type"))
+    actor_id: Mapped[uuid.UUID | None]
+    correlation_id: Mapped[str] = mapped_column(String(64), index=True)
+    execution_id: Mapped[uuid.UUID | None]
+    details: Mapped[dict[str, Any]]

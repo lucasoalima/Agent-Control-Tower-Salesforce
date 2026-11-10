@@ -64,3 +64,10 @@ class AgentProvider(StrEnum):
     CLAUDE_CODE = "CLAUDE_CODE"
     CODEX = "CODEX"
     OTHER = "OTHER"
+
+
+class AuditActorType(StrEnum):
+    OPERATOR = "OPERATOR"
+    AGENT = "AGENT"
+    SYSTEM = "SYSTEM"
+    ANONYMOUS = "ANONYMOUS"

@@ -145,9 +145,16 @@ Default policies created by `act seed`:
 | `executions`        | One row per tool request: decision, parameters, fingerprint, result      |
 | `operators`         | People who can sign in to the dashboard                                  |
 | `operator_sessions` | Server-side sessions (token hash, expiry, revocation)                    |
+| `audit_events`      | Append-only events: actor, action, time, correlation ID and redacted details |
 
 Operations are defined in code, not in a table: each one needs a schema and an
 adapter implementation, and both should go through code review.
+
+Authentication, agent-management, seed and approval-request events are added
+in the transaction that changes their state. PostgreSQL triggers reject updates,
+deletes and truncation of audit events. Actor and execution IDs are retained as
+historical identifiers, without cascading foreign keys. Existing records are
+not backfilled with invented audit history.
 
 ## Platform independence
 
@@ -167,7 +174,7 @@ class PlatformAdapter(Protocol):
 ## Planned (not built)
 
 - **Phase 2:** approval decisions bound to the action fingerprint, with expiry
-  and single use; policy editing; append-only audit events.
+  and single use; policy editing; audit events for those new actions.
 - **Phase 3:** MCP server exposing the catalogue as tools and calling the
   gateway API; Salesforce adapter (read-only first).
 - **Phase 4:** evaluation lab, metrics, OpenTelemetry.

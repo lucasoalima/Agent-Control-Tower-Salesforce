@@ -24,6 +24,7 @@ def test_expected_tables_exist(engine: Engine) -> None:
     tables = set(inspect(engine).get_table_names())
     assert {
         "agents",
+        "audit_events",
         "environments",
         "executions",
         "operator_sessions",

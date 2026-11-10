@@ -26,6 +26,7 @@ from control_tower.clock import utcnow
 from control_tower.core import lifecycle
 from control_tower.core.enums import (
     AgentStatus,
+    AuditActorType,
     DecisionReason,
     ExecutionStatus,
     PolicyEffect,
@@ -36,6 +37,7 @@ from control_tower.core.policy import PolicyDecision, PolicyRequest, decide
 from control_tower.core.ports import AdapterError, Clock, PlatformAdapter, TargetEnvironment
 from control_tower.core.redaction import contains_secret, redact
 from control_tower.logging import get_logger
+from control_tower.persistence.audit import record_event
 from control_tower.persistence.models import Agent, Environment, Execution, PolicyRule
 from control_tower.platforms.registry import AdapterRegistry
 
@@ -125,6 +127,21 @@ class Gateway:
         if decision.effect is PolicyEffect.REQUIRE_APPROVAL:
             execution.status = ExecutionStatus.PENDING_APPROVAL
             self._session.add(execution)
+            record_event(
+                self._session,
+                "approval.requested",
+                actor_type=AuditActorType.AGENT,
+                actor_id=agent.id,
+                correlation_id=correlation_id,
+                occurred_at=execution.decided_at,
+                execution_id=execution.id,
+                details={
+                    "action_hash": execution.action_hash,
+                    "agent_id": str(agent.id),
+                    "environment_id": str(environment.id),
+                    "operation_key": spec.key,
+                },
+            )
             self._session.commit()
             self._log(execution)
             return execution

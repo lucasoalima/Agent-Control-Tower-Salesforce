@@ -8,12 +8,15 @@ from control_tower.api.deps import (
     SESSION_COOKIE,
     AppClock,
     AppSettings,
+    CorrelationId,
     CurrentOperator,
     DbSession,
     enforce_same_origin,
 )
 from control_tower.api.schemas import LoginRequest, OperatorOut
+from control_tower.core.enums import AuditActorType
 from control_tower.logging import get_logger
+from control_tower.persistence.audit import record_event
 from control_tower.persistence.models import Operator, OperatorSession
 from control_tower.security.passwords import verify_password
 from control_tower.security.throttle import LoginThrottle
@@ -40,9 +43,19 @@ def login(
     settings: AppSettings,
     clock: AppClock,
     throttle: Annotated[LoginThrottle, Depends(get_throttle)],
+    correlation_id: CorrelationId,
 ) -> Operator:
     key = body.username.lower()
     if throttle.is_blocked(key):
+        record_event(
+            session,
+            "auth.login_throttled",
+            actor_type=AuditActorType.ANONYMOUS,
+            actor_id=None,
+            correlation_id=correlation_id,
+            occurred_at=clock(),
+        )
+        session.commit()
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS, "Too many failed attempts. Try again later."
         )
@@ -51,6 +64,15 @@ def login(
     password_ok = verify_password(operator.password_hash if operator else None, body.password)
     if operator is None or not password_ok or not operator.is_active:
         throttle.record_failure(key)
+        record_event(
+            session,
+            "auth.login_failed",
+            actor_type=AuditActorType.ANONYMOUS,
+            actor_id=None,
+            correlation_id=correlation_id,
+            occurred_at=clock(),
+        )
+        session.commit()
         log.warning("auth.login_failed", username=body.username)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect username or password.")
 
@@ -65,6 +87,14 @@ def login(
             created_at=now,
             expires_at=now + ttl,
         )
+    )
+    record_event(
+        session,
+        "auth.login",
+        actor_type=AuditActorType.OPERATOR,
+        actor_id=operator.id,
+        correlation_id=correlation_id,
+        occurred_at=now,
     )
     session.commit()
     response.set_cookie(
@@ -87,8 +117,18 @@ def logout(
     operator: CurrentOperator,
     session: DbSession,
     clock: AppClock,
+    correlation_id: CorrelationId,
 ) -> None:
-    request.state.operator_session.revoked_at = clock()
+    now = clock()
+    request.state.operator_session.revoked_at = now
+    record_event(
+        session,
+        "auth.logout",
+        actor_type=AuditActorType.OPERATOR,
+        actor_id=operator.id,
+        correlation_id=correlation_id,
+        occurred_at=now,
+    )
     session.commit()
     response.delete_cookie(SESSION_COOKIE, path="/")
     log.info("auth.logout", operator_id=str(operator.id))

@@ -92,9 +92,14 @@ stored in redacted form.
 ## Known limitations
 
 - **No approval decisions yet.** Requests that need approval can only wait.
-- **Policies cannot be edited through the API or UI yet,** and there is no
-  append-only audit log of configuration changes. Agent creation and status
-  changes are logged but not stored as audit events.
+- **Policies cannot be edited through the API or UI yet.** Audit events cover
+  successful, failed and throttled logins, logout, agent registration and status
+  changes, seeded policies and pending approval requests. Decision and
+  policy-editing events arrive with those features.
+- **Audit events are append-only for ordinary SQL writes.** PostgreSQL rejects
+  UPDATE, DELETE and TRUNCATE. The application has an insert helper only, and
+  inserts events in the state-changing transaction. Credentials are never
+  included in authentication events; other details pass through redaction.
 - **Secret detection is pattern-based.** It recognises Salesforce session
   tokens, CLI auth URLs, bearer tokens, JWTs, PEM private keys and this
   project's own tokens. It will miss secrets with no recognisable shape.
@@ -112,8 +117,9 @@ stored in redacted form.
 - **Agents are not rate limited.**
 - **Agent tokens do not expire** and cannot yet be rotated; disable the agent
   and register a new one.
-- **The database is trusted.** Anyone with write access to PostgreSQL can alter
-  records. Tamper-evidence (hash chaining) is a possible later addition.
+- **The database administrator is trusted.** An administrator who can drop or
+  disable triggers can bypass audit protections. Other tables remain mutable.
+  Tamper-evidence (hash chaining) is a possible later addition.
 - **Not a production deployment.** The Compose file is for local development.
 
 ## Reporting a problem

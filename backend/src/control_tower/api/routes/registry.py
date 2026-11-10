@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from control_tower.api.deps import AppClock, Catalog, CurrentOperator, DbSession
+from control_tower.api.deps import AppClock, Catalog, CorrelationId, CurrentOperator, DbSession
 from control_tower.api.schemas import (
     AgentCreate,
     AgentCreated,
@@ -18,10 +18,11 @@ from control_tower.api.schemas import (
     PolicyMatrix,
     PolicyRow,
 )
-from control_tower.core.enums import AgentStatus, EnvironmentKind
+from control_tower.core.enums import AgentStatus, AuditActorType, EnvironmentKind
 from control_tower.core.operations import OperationSpec
 from control_tower.core.policy import PolicyRequest, decide
 from control_tower.logging import get_logger
+from control_tower.persistence.audit import record_event
 from control_tower.persistence.models import Agent, Environment, PolicyRule
 from control_tower.security.tokens import hash_token, new_agent_token, token_hint
 
@@ -79,6 +80,7 @@ def create_agent(
     session: DbSession,
     catalog: Catalog,
     clock: AppClock,
+    correlation_id: CorrelationId,
 ) -> AgentCreated:
     environment = session.get(Environment, body.environment_id)
     if environment is None:
@@ -108,6 +110,20 @@ def create_agent(
     )
     session.add(agent)
     try:
+        session.flush()
+        record_event(
+            session,
+            "registry.agent_created",
+            actor_type=AuditActorType.OPERATOR,
+            actor_id=operator.id,
+            correlation_id=correlation_id,
+            occurred_at=clock(),
+            details={
+                "agent_id": str(agent.id),
+                "environment_id": str(environment.id),
+                "granted_operations": granted,
+            },
+        )
         session.commit()
     except IntegrityError as exc:
         session.rollback()
@@ -121,10 +137,24 @@ def create_agent(
 
 @router.patch("/agents/{agent_id}", response_model=AgentOut, summary="Enable or disable an agent")
 def update_agent_status(
-    agent_id: uuid.UUID, body: AgentStatusUpdate, operator: CurrentOperator, session: DbSession
+    agent_id: uuid.UUID,
+    body: AgentStatusUpdate,
+    operator: CurrentOperator,
+    session: DbSession,
+    clock: AppClock,
+    correlation_id: CorrelationId,
 ) -> Agent:
     agent = _get_agent(session, agent_id)
     agent.status = body.status
+    record_event(
+        session,
+        "registry.agent_status_changed",
+        actor_type=AuditActorType.OPERATOR,
+        actor_id=operator.id,
+        correlation_id=correlation_id,
+        occurred_at=clock(),
+        details={"agent_id": str(agent.id), "status": body.status.value},
+    )
     session.commit()
     log.info(
         "registry.agent_status_changed",

@@ -93,3 +93,40 @@ requirements; Radix-based components would earn their place there.
   only the outer check provides.
 - **A tautological assertion slipped into a test** and was removed during
   review. Green tests are not evidence until you have seen them fail.
+
+
+## 14. Enforce append-only audit events in PostgreSQL
+
+Lucas requested on 10 November 2026: "No UPDATE or DELETE path in application
+code; enforce it in the database if practical (trigger or revoked privileges)
+and test it."
+
+The application appends events in the transaction that changes state. Database
+triggers also reject UPDATE, DELETE and TRUNCATE, so direct SQL cannot silently
+rewrite events. Revoking privileges from the local owner would not provide
+the same protection; the owner could grant them back.
+
+Actor and execution identifiers have no cascading foreign keys, preserving
+history if operational records are removed. Credentials are omitted from
+authentication events, and event details use the existing redactor. A database
+administrator remains trusted.
+
+Original, backend/src/control_tower/api/routes/auth.py, login, line 69:
+
+```python
+session.commit()  # Only the session was persisted; the login existed in structured logs.
+```
+
+Updated, the same method, lines 91-99:
+
+```python
+record_event(  # Store the login and its session in the same database transaction.
+    session,
+    "auth.login",
+    actor_type=AuditActorType.OPERATOR,
+    actor_id=operator.id,
+    correlation_id=correlation_id,
+    occurred_at=now,
+)
+session.commit()  # Confirm both records together.
+```

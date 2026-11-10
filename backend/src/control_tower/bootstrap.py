@@ -3,6 +3,7 @@ demo agents and the first operator. Idempotent: running it twice changes nothing
 """
 
 import secrets
+import uuid
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
@@ -12,10 +13,12 @@ from control_tower.clock import utcnow
 from control_tower.core.enums import (
     AgentProvider,
     AgentStatus,
+    AuditActorType,
     EnvironmentKind,
     PolicyEffect,
 )
 from control_tower.core.operations import OperationCatalog
+from control_tower.persistence.audit import record_event
 from control_tower.persistence.models import Agent, Environment, Operator, PolicyRule
 from control_tower.platforms.salesforce import operations as sf
 from control_tower.platforms.salesforce.mock_adapter import MockSalesforceAdapter
@@ -69,6 +72,7 @@ class SeedReport:
 def seed(session: Session, catalog: OperationCatalog, settings: Settings) -> SeedReport:
     report = SeedReport()
     now = utcnow()
+    correlation_id = uuid.uuid4().hex
 
     environments: dict[str, Environment] = {}
     for name, kind, external_id in DEMO_ENVIRONMENTS:
@@ -104,14 +108,29 @@ def seed(session: Session, catalog: OperationCatalog, settings: Settings) -> See
                         updated_by="seed",
                     )
                 )
+                record_event(
+                    session,
+                    "policy.created",
+                    actor_type=AuditActorType.SYSTEM,
+                    actor_id=None,
+                    correlation_id=correlation_id,
+                    occurred_at=now,
+                    details={
+                        "operation_key": operation_key,
+                        "environment_kind": kind.value,
+                        "effect": effect.value,
+                    },
+                )
                 report.created.append(f"policy {operation_key} on {kind.value}")
 
     for name, provider, env_name, granted in DEMO_AGENTS:
         if session.scalar(select(Agent).where(Agent.name == name)) is not None:
             continue
         token = new_agent_token()
+        agent_id = uuid.uuid4()
         session.add(
             Agent(
+                id=agent_id,
                 name=name,
                 provider=provider,
                 status=AgentStatus.ACTIVE,
@@ -121,6 +140,19 @@ def seed(session: Session, catalog: OperationCatalog, settings: Settings) -> See
                 token_hint=token_hint(token),
                 created_at=now,
             )
+        )
+        record_event(
+            session,
+            "registry.agent_created",
+            actor_type=AuditActorType.SYSTEM,
+            actor_id=None,
+            correlation_id=correlation_id,
+            occurred_at=now,
+            details={
+                "agent_id": str(agent_id),
+                "environment_id": str(environments[env_name].id),
+                "granted_operations": sorted(granted if granted is not None else catalog.keys()),
+            },
         )
         report.agent_tokens[name] = token
         report.created.append(f"agent {name}")
