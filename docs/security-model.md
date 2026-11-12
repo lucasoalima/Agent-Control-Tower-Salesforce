@@ -164,3 +164,28 @@ using its correlation ID. The bridge does not provide exactly-once delivery.
 
 The person configuring the gateway URL and process environment is trusted. MCP
 clients must also avoid resubmitting uncertain writes. See [MCP setup](mcp-server.md).
+
+## Salesforce read integration
+
+Platform credentials are provided only to the backend process through
+ACT_SALESFORCE_CONNECTIONS. The MCP process receives only its agent token.
+Use a preconfigured OAuth client-credentials integration with a dedicated user
+whose object and field access is restricted to the intended reads. The adapter
+does not create an OAuth application, user, permission set or org setting.
+
+Bindings are checked against the gateway target UUID, platform, kind and org ID.
+The OAuth instance must equal the configured HTTPS My Domain origin; the org ID
+returned by a fixed Organization query must also match. No remote URL is followed
+from an authentication response, redirect or query locator. Identifier schemas
+are revalidated inside the adapter before constructing its bounded SOQL.
+
+Only org.describe and data.query have handlers. Unsupported operations are
+refused before any OAuth or API request. Existing policies still apply, including
+the default production data.query denial. API data access also depends on the
+integration user's Salesforce permissions; the api OAuth scope alone is not a
+read-only permission boundary.
+
+Remote errors use static messages. Results omit record attributes, apply the
+shared redactor and replace the exact OAuth and client credential values, even
+when those values do not match a known secret pattern. Live org behaviour has
+not been verified: all development uses synthetic records and HTTP mocks.

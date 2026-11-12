@@ -11,6 +11,10 @@ from control_tower.core.operations import OperationCatalog
 from control_tower.core.ports import PlatformAdapter
 from control_tower.platforms.salesforce.mock_adapter import MockSalesforceAdapter
 from control_tower.platforms.salesforce.operations import register_salesforce_operations
+from control_tower.platforms.salesforce.read_adapter import (
+    SalesforceReadAdapter,
+    SalesforceSettings,
+)
 
 
 @dataclass
@@ -38,4 +42,9 @@ def build_catalog() -> OperationCatalog:
 def build_adapters() -> AdapterRegistry:
     registry = AdapterRegistry()
     registry.register(MockSalesforceAdapter())
+    settings = SalesforceSettings()
+    if settings.connections:
+        registry.register(
+            SalesforceReadAdapter(settings.connections, timeout_seconds=settings.timeout_seconds)
+        )
     return registry

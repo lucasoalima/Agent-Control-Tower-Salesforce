@@ -8,8 +8,9 @@ Salesforce is the first supported platform. The core is platform-agnostic.
 
 > **Status: Phase 2 complete; Phase 3 in progress.** The policy gateway,
 > human approvals, append-only audit, mock Salesforce adapter and dashboard work.
-> Agent-scoped discovery and the stdio MCP server are available. The real
-> Salesforce adapter is not built yet.
+> Agent-scoped discovery and the stdio MCP server are available. Salesforce
+> REST org and data reads are implemented and HTTP-mock-tested. Live-org
+> verification, metadata reads and sandbox writes remain pending.
 > See [What works today](#what-works-today).
 
 ![Overview page: counts, requests waiting for approval and the latest requests, each drawn as a strip whose edge colour is the policy decision](docs/images/overview.png)
@@ -105,7 +106,8 @@ Running without Docker is described in [docs/development-guide.md](docs/developm
 | Background expiry and unknown-outcome reconciliation             | Working              |
 | Dashboard policy editing and approval decisions                 | Working              |
 | Agent-authenticated stdio MCP server                              | Working              |
-| Real Salesforce adapter                                           | **Phase 3**          |
+| Salesforce OAuth adapter: org and structured data reads            | HTTP-mock-tested     |
+| Salesforce metadata reads and sandbox write adapter               | **Phase 3**          |
 | Evaluation lab, metrics, OpenTelemetry                            | **Phase 4**          |
 
 Operators can approve or reject requests through the API and dashboard after
@@ -132,6 +134,7 @@ deployment requirement, not something this software can do for you. See
 
 ## Documentation
 
+- [Salesforce reads](docs/salesforce-read-adapter.md): OAuth, environment binding and limits
 - [MCP server](docs/mcp-server.md): agent configuration, tools and approval polling
 - [Architecture](docs/architecture.md): components, request flow, data model
 - [Security model](docs/security-model.md): trust boundaries, controls, limitations

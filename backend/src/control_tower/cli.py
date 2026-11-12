@@ -3,6 +3,7 @@
 import argparse
 import sys
 from pathlib import Path
+from uuid import UUID
 
 from alembic import command
 from alembic.config import Config
@@ -76,6 +77,39 @@ def _cmd_simulate(_: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_register_salesforce(args: argparse.Namespace) -> int:
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from control_tower.persistence.session import get_sessionmaker
+    from control_tower.platforms.salesforce.provisioning import register_environment
+    from control_tower.platforms.salesforce.read_adapter import SalesforceSettings
+
+    try:
+        settings = SalesforceSettings()
+        connection = next(
+            (item for item in settings.connections if item.environment_id == args.environment_id),
+            None,
+        )
+        if connection is None:
+            print("No Salesforce configuration matches that environment ID.", file=sys.stderr)
+            return 2
+        with get_sessionmaker()() as session:
+            created = register_environment(session, connection)
+    except (ValueError, SQLAlchemyError):
+        print(
+            "Salesforce registration refused. Check settings and existing bindings.",
+            file=sys.stderr,
+        )
+        return 2
+    print(
+        "Salesforce environment registered."
+        if created
+        else "Salesforce environment already registered."
+    )
+    print("No Salesforce request was sent.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="act", description="Agent Control Tower")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -86,6 +120,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "simulate", help="send a fixed set of demo tool requests through the gateway"
     ).set_defaults(func=_cmd_simulate)
+    register = sub.add_parser(
+        "register-salesforce",
+        help="register a configured read-only environment without remote calls",
+    )
+    register.add_argument("environment_id", type=UUID)
+    register.set_defaults(func=_cmd_register_salesforce)
     args = parser.parse_args(argv)
     return int(args.func(args))
 

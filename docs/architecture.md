@@ -188,7 +188,7 @@ class PlatformAdapter(Protocol):
 
 ## Planned (not built)
 
-- **Phase 3:** Salesforce adapter (read-only first).
+- **Phase 3:** remaining Salesforce metadata reads and sandbox write adapter.
 - **Phase 4:** evaluation lab, metrics, OpenTelemetry.
 
 ## Dashboard governance
@@ -216,3 +216,24 @@ schemas. Operation names are unchanged. Calls submit through the agent gateway;
 tower.request_status polls the same agent's execution endpoint. The bridge has
 no operator identity, database connection or adapter access. Gateway submission
 rechecks authorization even after discovery. See [MCP server](mcp-server.md).
+
+## Salesforce REST read adapter
+
+The default registry remains mock-only. Non-empty ACT_SALESFORCE_CONNECTIONS
+opts the API process into the salesforce-readonly adapter. Each entry binds a
+database environment UUID and kind to an expected org ID, HTTPS My Domain
+origin and explicit API version. OAuth client credentials stay in that process.
+
+The local register-salesforce command creates and audits a matching environment
+row without contacting Salesforce. It is idempotent and refuses changes to an
+existing binding. It does not create agents or change grants or policies.
+
+For every allowed action the adapter obtains an OAuth client-credentials token,
+checks the returned instance origin and queries the authenticated org identity.
+A mismatched org is refused before a data query. Only org.describe and data.query
+are supported. Structured query parameters are revalidated before SOQL is built.
+There is no free-form query, pagination, metadata, test or write handler.
+
+The HTTP client disables redirects and environment proxies, bounds responses
+and makes no automatic retries. Each action obtains a token; token caching and
+refresh are not implemented. See [Salesforce reads](salesforce-read-adapter.md).
