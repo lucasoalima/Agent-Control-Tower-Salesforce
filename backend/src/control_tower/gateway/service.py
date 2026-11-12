@@ -79,6 +79,28 @@ class Gateway:
         self._clock = clock
         self._approval_ttl_seconds = approval_ttl_seconds
 
+    def available_operations(self, agent: Agent) -> list[OperationSpec]:
+        """Describe actions this agent may request; never execute an adapter."""
+        environment = agent.environment
+        adapter = self._adapters.get(environment.adapter_key)
+        visible: list[OperationSpec] = []
+        for spec in self._catalog:
+            if self._intake_refusal(agent, environment, spec.key, spec, adapter) is not None:
+                continue
+            decision = decide(
+                PolicyRequest(
+                    agent_active=agent.status is AgentStatus.ACTIVE,
+                    agent_granted_operations=frozenset(agent.granted_operations),
+                    operation_key=spec.key,
+                    risk=spec.risk,
+                    environment_kind=environment.kind,
+                ),
+                self._rules_for(spec.key),
+            )
+            if decision.effect is not PolicyEffect.DENY:
+                visible.append(spec)
+        return visible
+
     def submit(
         self,
         agent: Agent,

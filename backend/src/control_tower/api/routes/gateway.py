@@ -13,7 +13,8 @@ from control_tower.api.deps import (
     CurrentAgent,
     DbSession,
 )
-from control_tower.api.schemas import ToolRequest, ToolResponse
+from control_tower.api.routes.registry import operation_out
+from control_tower.api.schemas import OperationOut, ToolRequest, ToolResponse
 from control_tower.core.enums import ExecutionStatus
 from control_tower.gateway.service import Gateway
 from control_tower.persistence.models import Execution
@@ -36,6 +37,25 @@ def _response(execution: Execution) -> ToolResponse:
         approval_expires_at=execution.approval_expires_at,
         reconciliation_required_at=execution.reconciliation_required_at,
     )
+
+
+@router.get(
+    "/operations",
+    response_model=list[OperationOut],
+    summary="List operations available to the calling agent",
+)
+def list_agent_operations(
+    response: Response,
+    agent: CurrentAgent,
+    session: DbSession,
+    catalog: Catalog,
+    adapters: Adapters,
+) -> list[OperationOut]:
+    response.headers["Cache-Control"] = "no-store"
+    return [
+        operation_out(spec)
+        for spec in Gateway(session, catalog, adapters).available_operations(agent)
+    ]
 
 
 @router.post(

@@ -35,6 +35,7 @@ OPERATOR_ENDPOINTS = [
     ("POST", "/auth/logout"),
 ]
 AGENT_ENDPOINTS = [
+    ("GET", "/gateway/operations"),
     ("POST", "/gateway/tool-requests"),
     ("GET", "/gateway/tool-requests/00000000-0000-0000-0000-000000000000"),
 ]

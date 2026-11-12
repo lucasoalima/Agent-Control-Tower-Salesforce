@@ -222,3 +222,36 @@ Updated, the same query, line 15:
 ```typescript
 "/executions?policy_effect=REQUIRE_APPROVAL&status=APPROVED&status=REJECTED&status=EXPIRED&status=EXECUTING&status=COMPLETED&status=FAILED&limit=25", // Keep the decision after dispatch.
 ```
+
+## 18. Discover tools with the agent identity, not operator credentials
+
+Lucas requested on 11 November 2026: "ok, publiquei, vamos para o proximo passo".
+
+The first Phase 3 delivery is an authenticated agent catalogue. The existing
+management catalogue remains operator-only. Giving an MCP process an operator
+session would also expose governance endpoints; a dedicated agent endpoint
+preserves the credential boundary.
+
+Discovery reuses gateway intake checks and the pure policy evaluator. It hides
+ungranted, unsupported and denied operations, but includes actions that need
+human approval because agents may request them. The returned catalogue is
+informational and not cached. Submission always performs its own fresh checks.
+
+Original, backend/tests/integration/test_api_auth.py, AGENT_ENDPOINTS, line 37:
+
+```python
+AGENT_ENDPOINTS = [  # Agents could submit and poll requests only.
+    ("POST", "/gateway/tool-requests"),
+```
+
+Updated, the same list, line 37:
+
+```python
+AGENT_ENDPOINTS = [
+    ("GET", "/gateway/operations"),  # Keep discovery protected by agent authentication.
+    ("POST", "/gateway/tool-requests"),
+```
+
+No dependency or database schema changes are needed for this discovery step.
+The official MCP SDK and transport will be added in the next delivery. Tests
+continue to use mock adapters; no real Salesforce org is accessed.

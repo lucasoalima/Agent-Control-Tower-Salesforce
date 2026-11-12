@@ -17,6 +17,22 @@ characters of `A-Z a-z 0-9 . _ -`); anything else is replaced.
 
 Authentication: `Authorization: Bearer act_agt_…`
 
+### `GET /gateway/operations`
+
+Returns the calling agent's available operation definitions, including strict
+parameter schemas. Only registered operations granted to that agent, supported
+by its bound environment's adapter and allowed or requiring approval under
+current policy are included. Production guardrails and default deny apply.
+
+The response is sorted by operation key and carries Cache-Control: no-store.
+Disabled agents and agents without eligible operations receive 200 with an
+empty array. Missing or invalid agent credentials, including operator sessions,
+receive 401. Query parameters cannot choose another identity or environment.
+
+Discovery creates no execution or audit event and never executes an adapter.
+Visibility is informational: every tool submission is independently validated
+again by the gateway. The operator-only GET /operations endpoint is unchanged.
+
 ### `POST /gateway/tool-requests`
 
 ```json

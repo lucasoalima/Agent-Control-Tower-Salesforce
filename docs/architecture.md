@@ -204,3 +204,14 @@ Successful or uncertain writes refresh execution lists, detail, audit history,
 overview counts and the policy matrix. Approval history is filtered on the
 server before pagination, so completed approved actions remain discoverable
 without including unrelated traffic.
+
+## Agent catalogue for the MCP boundary
+
+GET /gateway/operations authenticates with CurrentAgent and asks the gateway
+service which operation definitions are currently eligible. The service reuses
+its intake checks, rule lookup and pure policy decision. The API serializes
+eligible definitions with the same operation_out helper as the management API.
+
+This is the discovery foundation for Phase 3; the MCP transport is not built yet.
+Discovery cannot approve, change policies or execute an operation. Tool calls
+will continue through the existing authenticated gateway endpoints.

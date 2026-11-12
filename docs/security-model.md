@@ -89,6 +89,19 @@ payload is stored byte-for-byte as validated, and a payload containing something
 that looks like a credential is refused outright. Only refused payloads are
 stored in redacted form.
 
+## Agent-scoped operation discovery
+
+The MCP integration can discover operation schemas through GET
+/gateway/operations using an agent bearer token. It does not need an operator
+session or access to the management API. Discovery reuses the gateway's intake
+checks and core policy evaluator, including current grants, adapter support,
+default deny and the fixed production guardrail.
+
+The catalogue is not an execution grant. The gateway rechecks every submitted
+action even if it appeared in an earlier discovery response. Responses are not
+cacheable; a later discovery observes revoked grants or policy changes.
+No platform credentials are exposed and no adapter operation runs during discovery.
+
 ## Known limitations
 
 - **Approval decisions are available through the operator API.** Agent tokens

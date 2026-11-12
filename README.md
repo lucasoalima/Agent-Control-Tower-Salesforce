@@ -6,9 +6,10 @@ acts on their behalf with credentials the agents never see.
 
 Salesforce is the first supported platform. The core is platform-agnostic.
 
-> **Status: Phase 1 of 4.** The policy gateway, audit records, mock Salesforce
-> adapter, management API and dashboard work and are tested. Human approval
-> decisions, the MCP server and the real Salesforce adapter are not built yet.
+> **Status: Phase 2 complete; Phase 3 in progress.** The policy gateway,
+> human approvals, append-only audit, mock Salesforce adapter and dashboard work.
+> Agent-scoped operation discovery is available. The MCP transport and real
+> Salesforce adapter are not built yet.
 > See [What works today](#what-works-today).
 
 ![Overview page: counts, requests waiting for approval and the latest requests, each drawn as a strip whose edge colour is the policy decision](docs/images/overview.png)
@@ -92,6 +93,7 @@ Running without Docker is described in [docs/development-guide.md](docs/developm
 | Policy decision (allow, require approval, deny, default deny)     | Working, tested      |
 | Production guardrail (only reads can ever reach production)       | Working, tested      |
 | Strict per-operation parameter schemas                            | Working, tested      |
+| Agent-scoped operation discovery for MCP                           | Working              |
 | Execution records with action fingerprint and correlation ID      | Working, tested      |
 | Secret detection and redaction (payloads, results, logs)          | Working, tested      |
 | Mock Salesforce adapter (8 operations, inspectable state)         | Working, tested      |
