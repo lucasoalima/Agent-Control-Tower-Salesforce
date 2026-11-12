@@ -147,3 +147,20 @@ No platform credentials are exposed and no adapter operation runs during discove
 ## Reporting a problem
 
 Open a GitHub issue. Do not include real credentials or customer data.
+
+## MCP process boundary
+
+The stdio MCP process holds one agent token. It sends it only to the configured
+HTTPS gateway origin, or a loopback HTTP origin for local development. URLs with
+userinfo, paths, queries or fragments are refused. Redirects and environment
+proxy discovery are disabled. The process never accepts an operator session.
+
+Tools preserve gateway schemas and use only agent endpoints. Identity and target
+are derived by the gateway from the token. Polling cannot approve or dispatch an
+action. Responses are bounded and redacted; transport failures never echo HTTP
+bodies or exception details. A submission with an unconfirmed response is marked
+as having an unknown outcome, with no automatic retry. Operators reconcile it
+using its correlation ID. The bridge does not provide exactly-once delivery.
+
+The person configuring the gateway URL and process environment is trusted. MCP
+clients must also avoid resubmitting uncertain writes. See [MCP setup](mcp-server.md).

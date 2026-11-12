@@ -188,8 +188,7 @@ class PlatformAdapter(Protocol):
 
 ## Planned (not built)
 
-- **Phase 3:** MCP server exposing the catalogue as tools and calling the
-  gateway API; Salesforce adapter (read-only first).
+- **Phase 3:** Salesforce adapter (read-only first).
 - **Phase 4:** evaluation lab, metrics, OpenTelemetry.
 
 ## Dashboard governance
@@ -212,6 +211,8 @@ service which operation definitions are currently eligible. The service reuses
 its intake checks, rule lookup and pure policy decision. The API serializes
 eligible definitions with the same operation_out helper as the management API.
 
-This is the discovery foundation for Phase 3; the MCP transport is not built yet.
-Discovery cannot approve, change policies or execute an operation. Tool calls
-will continue through the existing authenticated gateway endpoints.
+The stdio MCP server uses this endpoint to discover tools and their exact input
+schemas. Operation names are unchanged. Calls submit through the agent gateway;
+tower.request_status polls the same agent's execution endpoint. The bridge has
+no operator identity, database connection or adapter access. Gateway submission
+rechecks authorization even after discovery. See [MCP server](mcp-server.md).

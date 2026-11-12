@@ -9,6 +9,8 @@ dependencies = [
     "alembic>=1.13",
     "argon2-cffi>=23.1",
     "fastapi>=0.115",
+    "httpx2>=2.10,<3",
+    "mcp>=2.3,<3",
     "psycopg[binary]>=3.2",
     "pydantic>=2.8",
     "pydantic-settings>=2.4",
@@ -19,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 act = "control_tower.cli:main"
+act-mcp = "control_tower.mcp_server:main"
 
 [dependency-groups]
 dev = [
