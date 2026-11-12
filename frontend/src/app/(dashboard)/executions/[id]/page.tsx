@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
+import { ApprovalReview, ExecutionAudit } from "@/components/governance";
 import { ReconciliationNotice } from "@/components/reconciliation-notice";
 import { ErrorState, JsonBlock, Loading, SectionTitle, Tag, ToneLabel } from "@/components/ui";
 import { ApiError } from "@/lib/api";
@@ -119,6 +120,7 @@ export default function ExecutionPage() {
       </header>
 
       <ReconciliationNotice requiredAt={e.reconciliation_required_at} />
+      <ApprovalReview key={e.id + e.action_hash + e.status} execution={e} />
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,3fr)]">
         <div className="flex min-w-0 flex-col gap-7">
@@ -163,6 +165,7 @@ export default function ExecutionPage() {
         </div>
 
         <aside className="flex min-w-0 flex-col gap-7">
+          <ExecutionAudit id={e.id} />
           <section>
             <SectionTitle>Timeline</SectionTitle>
             <Timeline e={e} />

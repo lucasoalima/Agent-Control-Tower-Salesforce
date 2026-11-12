@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from sqlalchemy import Select, String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
-from control_tower.core.enums import AgentStatus, ExecutionStatus
+from control_tower.core.enums import AgentStatus, ExecutionStatus, PolicyEffect
 from control_tower.persistence.models import Agent, Environment, Execution
 
 
@@ -51,6 +51,7 @@ class ExecutionFilter:
     environment_id: uuid.UUID | None = None
     operation_key: str | None = None
     search: str | None = None
+    policy_effect: PolicyEffect | None = None
 
 
 def _like_pattern(term: str) -> str:
@@ -59,6 +60,8 @@ def _like_pattern(term: str) -> str:
 
 
 def _apply(stmt: Select[Execution], f: ExecutionFilter) -> Select[Execution]:
+    if f.policy_effect is not None:
+        stmt = stmt.where(Execution.policy_effect == f.policy_effect)
     if f.statuses:
         stmt = stmt.where(Execution.status.in_(f.statuses))
     if f.agent_id:

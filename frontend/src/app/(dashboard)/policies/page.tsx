@@ -1,32 +1,13 @@
 "use client";
 
 import useSWR from "swr";
-import { ErrorState, Loading, Notice, PageHeader, ToneLabel } from "@/components/ui";
-import { EFFECT_LABEL, EFFECT_TONE, KIND_LABEL, RISK_LABEL } from "@/lib/labels";
-import type { PolicyCell, PolicyMatrix } from "@/lib/types";
-
-function Cell({ cell }: { cell: PolicyCell }) {
-  const overridden = cell.configured !== null && cell.configured !== cell.effective;
-  return (
-    <td className="border-t border-l border-line px-3 py-2 align-top">
-      <ToneLabel tone={EFFECT_TONE[cell.effective]}>{EFFECT_LABEL[cell.effective]}</ToneLabel>
-      {cell.reason === "NO_MATCHING_RULE" ? (
-        <p className="text-[13px] text-muted">No rule, so blocked by default</p>
-      ) : null}
-      {cell.reason === "PRODUCTION_GUARDRAIL" ? (
-        <p className="text-[13px] text-muted">
-          Fixed guardrail
-          {overridden && cell.configured
-            ? `, overrides the “${EFFECT_LABEL[cell.configured].toLowerCase()}” rule`
-            : ""}
-        </p>
-      ) : null}
-    </td>
-  );
-}
+import { PolicyEditor } from "@/components/governance";
+import { ErrorState, Loading, Notice, PageHeader } from "@/components/ui";
+import { KIND_LABEL, RISK_LABEL } from "@/lib/labels";
+import type { PolicyMatrix } from "@/lib/types";
 
 export default function PoliciesPage() {
-  const { data, error } = useSWR<PolicyMatrix>("/policies");
+  const { data, error } = useSWR<PolicyMatrix>("/policies", { refreshInterval: 10_000 });
   if (error) return <ErrorState error={error} />;
   if (!data) return <Loading />;
 
@@ -38,8 +19,7 @@ export default function PoliciesPage() {
       </PageHeader>
 
       <Notice>
-        Policies are read-only in this version. Anything that is not a read is always blocked on
-        production environments, whatever the rules say.
+        Select an effect and save each change. Production guardrails are fixed and cannot be edited.
       </Notice>
 
       <div className="overflow-x-auto rounded-sm border border-line bg-surface">
@@ -67,7 +47,10 @@ export default function PoliciesPage() {
                   <p className="text-[13px] text-muted">{operation.key}</p>
                 </th>
                 {cells.map((cell) => (
-                  <Cell key={cell.environment_kind} cell={cell} />
+                  <PolicyEditor
+                    key={operation.key + cell.environment_kind + cell.configured + cell.effective}
+                    operation={operation.key} title={operation.title} cell={cell}
+                  />
                 ))}
               </tr>
             ))}

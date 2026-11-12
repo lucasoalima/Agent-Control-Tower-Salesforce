@@ -268,3 +268,36 @@ def test_environments_are_listed(operator_client: TestClient, world: World) -> N
         ("prod-env", "PRODUCTION"),
         ("uat-env", "TESTING"),
     ]
+
+
+def test_approval_history_includes_completed_actions_without_unapproved_traffic(
+    operator_client: TestClient, gateway: Gateway, world: World, make_agent: AgentFactory
+) -> None:
+    traffic(gateway, world, make_agent)
+    queued = operator_client.get(
+        f"{API}/executions", params={"policy_effect": "REQUIRE_APPROVAL"}
+    ).json()
+    assert queued["total"] == 1
+    row = operator_client.get(f"{API}/executions/{queued['items'][0]['id']}").json()
+    response = operator_client.post(
+        f"{API}/executions/{row['id']}/approve",
+        json={
+            "action_hash": row["action_hash"],
+            "agent_id": row["agent"]["id"],
+            "environment_id": row["environment"]["id"],
+        },
+    )
+    assert response.status_code == 200 and response.json()["status"] == "COMPLETED"
+    history = operator_client.get(
+        f"{API}/executions",
+        params={"policy_effect": "REQUIRE_APPROVAL", "status": "COMPLETED", "limit": 1},
+    ).json()
+    assert history["total"] == 1 and history["items"][0]["id"] == row["id"]
+    assert (
+        operator_client.get(f"{API}/executions", params={"policy_effect": "ALLOW"}).json()["total"]
+        == 3
+    )
+    assert (
+        operator_client.get(f"{API}/executions", params={"policy_effect": "invalid"}).status_code
+        == 422
+    )

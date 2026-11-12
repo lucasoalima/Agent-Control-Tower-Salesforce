@@ -188,8 +188,19 @@ class PlatformAdapter(Protocol):
 
 ## Planned (not built)
 
-- **Phase 2:** approval decisions bound to the action fingerprint, with expiry
-  and single use; policy editing in the dashboard; audit events for approval decisions.
 - **Phase 3:** MCP server exposing the catalogue as tools and calling the
   gateway API; Salesforce adapter (read-only first).
 - **Phase 4:** evaluation lab, metrics, OpenTelemetry.
+
+## Dashboard governance
+
+The queue loads the complete stored action when a request is opened. A shared
+review component is used there and on execution detail pages. It sends only the
+execution ID, hash, agent and environment binding. The API supplies execution
+eligibility and the effective policy; the browser does not duplicate policy
+evaluation. Decisions and policy writes are explicit, never automatically retried.
+
+Successful or uncertain writes refresh execution lists, detail, audit history,
+overview counts and the policy matrix. Approval history is filtered on the
+server before pagination, so completed approved actions remain discoverable
+without including unrelated traffic.

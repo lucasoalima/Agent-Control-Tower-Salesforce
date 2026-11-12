@@ -95,12 +95,14 @@ stored in redacted form.
   cannot approve, reject or dispatch approvals. Every decision binds the
   execution, hash, agent and environment. Dispatch consumes the immutable
   approval under a row lock, rechecks current eligibility and uses only stored
-  parameters. Dashboard decision controls are still pending.
+  parameters. Dashboard controls require review of the displayed stored action
+  before a decision can be submitted.
 - **Policy editing is available through the operator API.** Every write to a
   non-read production cell is rejected. Policy changes and their previous
-  values are audited in the same transaction. Dashboard editing controls are pending.
-  Audit events also cover authentication, agent management, seeded policies
-  and pending approval requests; approval decisions are still pending.
+  values are audited in the same transaction. Dashboard cells use the server's
+  guardrail reason to hide editing controls for fixed production policies.
+  Audit events also cover authentication, agent management, seeded policies,
+  pending approval requests, approvals, rejections, consumption and expirations.
 - **Audit events are append-only for ordinary SQL writes.** PostgreSQL rejects
   UPDATE, DELETE and TRUNCATE. The application has an insert helper only, and
   inserts events in the state-changing transaction. Credentials are never

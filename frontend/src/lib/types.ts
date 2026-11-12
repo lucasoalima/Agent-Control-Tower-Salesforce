@@ -115,3 +115,14 @@ export interface Overview {
   failed_actions: number;
   policy_violations: number;
 }
+
+export interface AuditEvent {
+  id: string;
+  occurred_at: string;
+  action: string;
+  actor_type: "OPERATOR" | "AGENT" | "SYSTEM" | "ANONYMOUS";
+  actor_id: string | null;
+  correlation_id: string;
+  execution_id: string | null;
+  details: Record<string, unknown>;
+}

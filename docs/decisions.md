@@ -194,3 +194,31 @@ execution.status = ExecutionStatus.APPROVED  # Bind the human decision before di
 self._approval_event("approval.approved", execution, operator_id, correlation_id)  # Retain who approved.
 self._session.commit()  # Persist the grant so interrupted dispatch can be resumed explicitly.
 ```
+
+## 17. Review stored actions and keep decision history after dispatch
+
+Lucas requested on 10 November 2026: "Dashboard: approve and reject controls on
+the approval queue and the execution detail page, showing exactly what will run
+(parameters, environment, hash) before the operator decides. Show approval history."
+
+Queue and detail share a review component. It displays the stored parameters
+and binding before enabling submission. In-flight writes cannot be submitted
+twice, and failures trigger a refresh rather than an automatic retry. Policy
+cells use the server's guardrail reason instead of duplicating policy logic.
+
+The execution search accepts a policy-effect filter before pagination. Approval
+history therefore includes running, completed and failed approved actions while
+excluding actions that never required approval. Audit detail retains the actor,
+timestamp and correlation ID.
+
+Original, frontend/src/app/(dashboard)/approvals/page.tsx, ApprovalsPage, line 14:
+
+```typescript
+"/executions?status=APPROVED&status=REJECTED&status=EXPIRED&limit=25", // Finished approvals disappeared.
+```
+
+Updated, the same query, line 15:
+
+```typescript
+"/executions?policy_effect=REQUIRE_APPROVAL&status=APPROVED&status=REJECTED&status=EXPIRED&status=EXECUTING&status=COMPLETED&status=FAILED&limit=25", // Keep the decision after dispatch.
+```

@@ -20,7 +20,7 @@ from control_tower.api.schemas import (
     ExecutionSummary,
     Overview,
 )
-from control_tower.core.enums import ExecutionStatus
+from control_tower.core.enums import ExecutionStatus, PolicyEffect
 from control_tower.core.operations import OperationCatalog
 from control_tower.gateway.service import ApprovalBinding, ApprovalError, Gateway
 from control_tower.persistence import queries
@@ -49,6 +49,7 @@ def list_executions(
     environment_id: uuid.UUID | None = None,
     operation: Annotated[str | None, Query(max_length=120)] = None,
     q: Annotated[str | None, Query(max_length=120)] = None,
+    policy_effect: PolicyEffect | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ExecutionPage:
@@ -60,6 +61,7 @@ def list_executions(
             environment_id=environment_id,
             operation_key=operation,
             search=q,
+            policy_effect=policy_effect,
         ),
         limit=limit,
         offset=offset,

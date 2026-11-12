@@ -96,19 +96,19 @@ Running without Docker is described in [docs/development-guide.md](docs/developm
 | Secret detection and redaction (payloads, results, logs)          | Working, tested      |
 | Mock Salesforce adapter (8 operations, inspectable state)         | Working, tested      |
 | Operator sign-in, agent tokens, strict separation of the two      | Working, tested      |
-| Dashboard: overview, agents, approval queue, history, policies    | Working, read-only   |
+| Dashboard: overview, agents, approval queue, history, policies    | Working              |
 | Approval API with hash-bound, expiring, single-use decisions     | Working              |
 | Append-only audit events (Phase 2 foundation)                    | Working              |
 | Policy editing API with audited changes                         | Working              |
 | Background expiry and unknown-outcome reconciliation             | Working              |
-| Dashboard policy editing and approval decisions                 | **Phase 2**          |
+| Dashboard policy editing and approval decisions                 | Working              |
 | MCP server, real Salesforce adapter                               | **Phase 3**          |
 | Evaluation lab, metrics, OpenTelemetry                            | **Phase 4**          |
 
-Operators can approve or reject requests through the API. Unused approvals
-expire at their stored deadline. Dashboard controls are still pending. Stale
-running executions are marked as having an unknown outcome and are never
-retried automatically.
+Operators can approve or reject requests through the API and dashboard after
+reviewing the stored action. Unused approvals expire at their stored deadline.
+Policy edits and human decisions retain immutable audit history. Stale running
+executions are marked as having an unknown outcome and are never retried automatically.
 
 ## Verification
 

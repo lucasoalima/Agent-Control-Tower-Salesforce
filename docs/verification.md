@@ -68,3 +68,44 @@ client cache), which was fixed and re-verified. The screenshots in
 
 Approval decisions, policy editing, audit event log, MCP server, real Salesforce
 adapter, evaluation lab, OpenTelemetry. See the status table in the README.
+
+## Governance API milestone
+
+Executed on the Windows host with Python 3.12.10 and PostgreSQL 16 in Docker:
+
+| Check | Result |
+| --- | --- |
+| Ruff lint and format | Passed; 71 Python files formatted |
+| Strict mypy | Passed; 45 source files |
+| Backend suite | 383 passed, 97% coverage, database required |
+| Frontend lint, TypeScript and production build | Passed |
+| Frontend tests | 20 passed |
+| Approval security mutations | 13 detected, isolated processes, no source edits |
+| Normal approval and authentication tests after mutations | 107 passed |
+| Docker build and startup | Both images built; backend and database healthy |
+| Live requests through dashboard proxy | Anonymous 401; approved COMPLETED; replay 409; rejected without execution; three audit events |
+
+All platform actions used the mock Salesforce adapter. No push or real Salesforce
+operation was performed. The earlier Phase 1 "not executed" table records that
+milestone only; Docker and Windows have since been verified as listed above.
+
+For dashboard changes, run the Makefile's underlying backend and frontend
+checks. Governance tests cover request bindings, no automatic retries, review
+markup, policy controls, history filtering and catalogue schema changes.
+Interactive browser verification remains a separate check from these tests.
+
+## Phase 2 dashboard verification (11 November 2026)
+
+- Backend: 388 tests passed, 97% coverage; Ruff and strict mypy passed.
+- Frontend: 51 tests passed; ESLint, TypeScript and the production build passed.
+- Docker: both images built and the local stack started successfully.
+- Browser: reviewed parameters and binding before approval; approved from the
+  queue, rejected from detail, resumed an unused approval and checked the
+  immutable history after completion.
+- Policy editing was saved and restored; four non-read production cells exposed
+  fixed guardrails without editing controls. No browser console errors occurred.
+- Nine new mutations were detected: six frontend and three backend checks.
+  Transformations were isolated in memory; no source mutations were retained.
+- The temporary browser operator and session were removed after verification.
+- The browser walkthrough is manual. CI covers markup and request tests, not
+  an automated browser end-to-end suite. All platform actions used the mock.

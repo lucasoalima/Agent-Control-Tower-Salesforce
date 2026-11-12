@@ -1,5 +1,6 @@
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import timedelta
 from threading import Barrier, Event, Lock
 from typing import Any
@@ -386,3 +387,44 @@ def test_changing_the_deadline_does_not_extend_the_original_request(
     db.commit()
     assert operator_client.post(url(waiting, "approve"), json=body(waiting)).status_code == 409
     assert waiting.status is S.PENDING_APPROVAL and waiting.started_at is None
+
+
+@pytest.mark.parametrize("action", ["approve", "execute"])
+@pytest.mark.parametrize("schema_change", ["required_field", "new_default"])
+def test_catalog_schema_changes_cannot_reinterpret_an_existing_approval(
+    waiting: Execution,
+    gateway: Gateway,
+    operator: Operator,
+    operator_client: TestClient,
+    app: FastAPI,
+    catalog: OperationCatalog,
+    action: str,
+    schema_change: str,
+) -> None:
+    if action == "execute":
+        gateway.approve(waiting.id, binding(waiting), operator.id, "schema-approval")
+
+    class RequiredField(OperationParams):
+        class_name: str
+        body: str
+        change_ticket: str
+
+    class NewDefault(OperationParams):
+        class_name: str
+        body: str
+        change_ticket: str = "unreviewed-default"
+
+    revised = OperationCatalog()
+    for spec in catalog:
+        revised.register(
+            replace(
+                spec,
+                params_model=RequiredField if schema_change == "required_field" else NewDefault,
+            )
+            if spec.key == waiting.operation_key
+            else spec
+        )
+    app.state.catalog = revised
+    response = operator_client.post(url(waiting, action), json=body(waiting))
+    assert response.status_code == 409
+    assert waiting.started_at is None and waiting.result is None

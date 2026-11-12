@@ -96,7 +96,7 @@ Authentication: session cookie from `POST /auth/login`.
 | `GET /operations` | Operation catalogue with parameter schemas. |
 | `GET /policies` | Matrix of configured and effective policy per operation and environment kind. |
 | `PUT /policies/{operation_key}/{environment_kind}` | Set an operation policy; operator session required. |
-| `GET /executions` | Search. Query: `status` (repeatable), `agent_id`, `environment_id`, `operation`, `q`, `limit` (≤100), `offset`. |
+| `GET /executions` | Search. Query: `status` (repeatable), `agent_id`, `environment_id`, `operation`, `policy_effect`, `q`, `limit` (≤100), `offset`. |
 | `GET /executions/{id}` | Full record including parameters, result and error. |
 | `POST /executions/{id}/approve` | Approve and dispatch the exact stored action. |
 | `POST /executions/{id}/reject` | Reject a pending request without executing it. |
@@ -159,3 +159,19 @@ adapter response is recorded.
 
 `GET /healthz` (process is up) and `GET /readyz` (database reachable). No
 authentication.
+
+## Dashboard governance
+
+The approval queue and execution detail show the stored parameters, identities,
+environment, hash and expiry before a review checkbox enables the decision
+buttons. Submission is disabled while a decision is in flight. Neither decision
+nor policy writes are retried automatically after a conflict or network error.
+
+Approval history remains visible after completion or failure. The queue uses
+the policy_effect=REQUIRE_APPROVAL execution filter to exclude actions that
+never required approval. Detail pages show immutable audit events with actor,
+timestamp, correlation ID and the original binding.
+
+The Policies page saves one effect at a time. Cells marked by the API as
+PRODUCTION_GUARDRAIL expose no editing controls. The server remains responsible
+for policy and approval validation; the UI does not recalculate business rules.

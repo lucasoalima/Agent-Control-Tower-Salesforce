@@ -1,8 +1,9 @@
 "use client";
 
 import useSWR from "swr";
+import { ApprovalRequest } from "@/components/governance";
 import { StripList } from "@/components/strip";
-import { EmptyState, ErrorState, Loading, Notice, PageHeader, SectionTitle } from "@/components/ui";
+import { EmptyState, ErrorState, Loading, PageHeader, SectionTitle } from "@/components/ui";
 import { plural } from "@/lib/format";
 import type { ExecutionPage } from "@/lib/types";
 
@@ -11,7 +12,7 @@ export default function ApprovalsPage() {
     refreshInterval: 5000,
   });
   const decided = useSWR<ExecutionPage>(
-    "/executions?status=APPROVED&status=REJECTED&status=EXPIRED&limit=25",
+    "/executions?policy_effect=REQUIRE_APPROVAL&status=APPROVED&status=REJECTED&status=EXPIRED&status=EXECUTING&status=COMPLETED&status=FAILED&limit=25",
     { refreshInterval: 10_000 },
   );
 
@@ -26,15 +27,14 @@ export default function ApprovalsPage() {
         the agent asked to change.
       </PageHeader>
 
-      <Notice>
-        Approving and rejecting are not available in this version. A request listed here has not
-        run and cannot run; it stays recorded with the exact payload the agent sent.
-      </Notice>
-
       <section>
         <SectionTitle aside={plural(waiting.data.total, "request")}>Waiting</SectionTitle>
         {waiting.data.items.length ? (
-          <StripList executions={waiting.data.items} />
+          <ul className="flex flex-col gap-2">
+            {waiting.data.items.map((execution) => (
+              <ApprovalRequest key={execution.id} execution={execution} />
+            ))}
+          </ul>
         ) : (
           <EmptyState title="Nothing is waiting">
             Requests appear here when an agent asks for an operation whose policy is “needs
@@ -45,6 +45,7 @@ export default function ApprovalsPage() {
 
       <section className="mt-8">
         <SectionTitle>Decision history</SectionTitle>
+        <p className="mb-3 text-[13px] text-muted">Includes approved actions that are running, completed or failed.</p>
         {decided.data.items.length ? (
           <StripList executions={decided.data.items} />
         ) : (
