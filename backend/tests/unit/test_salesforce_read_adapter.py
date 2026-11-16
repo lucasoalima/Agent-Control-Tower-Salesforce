@@ -152,8 +152,6 @@ def test_query_is_compiled_from_validated_fields_and_bounded() -> None:
 @pytest.mark.parametrize(
     "operation",
     [
-        ops.METADATA_LIST,
-        ops.METADATA_READ,
         ops.APEX_WRITE,
         ops.PERMISSION_SET_MODIFY,
         ops.DEPLOY,

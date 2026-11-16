@@ -19,6 +19,8 @@ from control_tower.platforms.salesforce import operations as ops
 ORG_QUERY = "SELECT Id, Name, InstanceName, IsSandbox, OrganizationType FROM Organization LIMIT 1"
 MAX_RESPONSE_BYTES = 1_048_576
 ORG_ID = r"00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?"
+APEX_METADATA_TYPES = frozenset(("ApexClass", "ApexTrigger"))
+MAX_METADATA_COMPONENTS = 200
 
 
 class SalesforceConnection(BaseModel):
@@ -111,14 +113,19 @@ class SalesforceReadAdapter:
         self._transport = transport
 
     def supports(self, operation_key: str) -> bool:
-        return operation_key in (ops.ORG_DESCRIBE, ops.DATA_QUERY)
+        return operation_key in (
+            ops.ORG_DESCRIBE,
+            ops.DATA_QUERY,
+            ops.METADATA_LIST,
+            ops.METADATA_READ,
+        )
 
     def execute(
         self, target: TargetEnvironment, operation_key: str, params: OperationParams
     ) -> dict[str, Any]:
         if not self.supports(operation_key):
             raise AdapterError(
-                "UNSUPPORTED_OPERATION", "This adapter only supports org and data reads."
+                "UNSUPPORTED_OPERATION", "This adapter only supports read operations."
             )
         connection = self._connections.get(target.id)
         if (
@@ -133,12 +140,23 @@ class SalesforceReadAdapter:
             validated: OperationParams
             if operation_key == ops.DATA_QUERY:
                 validated = ops.QueryDataParams.model_validate(params.model_dump())
+            elif operation_key == ops.METADATA_LIST:
+                validated = ops.ListMetadataParams.model_validate(params.model_dump())
+            elif operation_key == ops.METADATA_READ:
+                validated = ops.ReadMetadataParams.model_validate(params.model_dump())
             else:
                 validated = ops.DescribeOrgParams.model_validate(params.model_dump())
         except ValidationError:
             raise AdapterError(
                 "INVALID_PARAMETERS", "Invalid Salesforce read parameters."
             ) from None
+        if isinstance(validated, (ops.ListMetadataParams, ops.ReadMetadataParams)) and (
+            validated.metadata_type not in APEX_METADATA_TYPES
+        ):
+            raise AdapterError(
+                "UNSUPPORTED_METADATA_TYPE",
+                "Only ApexClass and ApexTrigger metadata are supported.",
+            )
         with httpx.Client(
             base_url=connection.origin,
             timeout=self._timeout,
@@ -194,6 +212,8 @@ class SalesforceReadAdapter:
                     validated.limit,
                 )
                 result = {"sobject": validated.sobject, "total_size": len(rows), "records": rows}
+            elif isinstance(validated, (ops.ListMetadataParams, ops.ReadMetadataParams)):
+                result = self._metadata(client, connection, headers, validated)
             else:
                 result = {
                     "org_id": org.org_id,
@@ -216,6 +236,90 @@ class SalesforceReadAdapter:
             )
             assert isinstance(cleaned, dict)
             return cleaned
+
+    def _metadata(
+        self,
+        client: httpx.Client,
+        connection: SalesforceConnection,
+        headers: dict[str, str],
+        params: ops.ListMetadataParams | ops.ReadMetadataParams,
+    ) -> dict[str, Any]:
+        path = "/services/data/v" + connection.api_version + "/tooling/query"
+        if isinstance(params, ops.ReadMetadataParams):
+            prefix, separator, name = params.full_name.partition("__")
+            if not separator:
+                name, prefix = prefix, ""
+            namespace = "'" + prefix + "'" if prefix else "null"
+            query = (
+                "SELECT Name, NamespacePrefix, Body FROM "  # noqa: S608
+                + params.metadata_type
+                + " WHERE Name = '"
+                + name
+                + "' AND NamespacePrefix = "
+                + namespace
+                + " LIMIT 2"
+            )
+            records = self._records(
+                self._request(client, "GET", path, params={"q": query}, headers=headers), 2
+            )
+            if not records:
+                raise AdapterError("NOT_FOUND", "The requested Apex component was not found.")
+            if (
+                len(records) != 1
+                or self._component_name(records[0], params.metadata_type) != params.full_name
+            ):
+                raise AdapterError(
+                    "INVALID_RESPONSE", "Salesforce returned an unexpected Apex component."
+                )
+            body = records[0].get("Body")
+            if not isinstance(body, str) or not body:
+                raise AdapterError(
+                    "SOURCE_UNAVAILABLE", "The requested Apex source is unavailable."
+                )
+            return {
+                "metadata_type": params.metadata_type,
+                "full_name": params.full_name,
+                "body": body,
+            }
+        query = (
+            "SELECT Name, NamespacePrefix FROM "  # noqa: S608
+            + params.metadata_type
+            + " ORDER BY Name, NamespacePrefix LIMIT "
+            + str(MAX_METADATA_COMPONENTS + 1)
+        )
+        records = self._records(
+            self._request(client, "GET", path, params={"q": query}, headers=headers),
+            MAX_METADATA_COMPONENTS + 1,
+        )
+        if len(records) > MAX_METADATA_COMPONENTS:
+            raise AdapterError(
+                "METADATA_RESULT_LIMIT", "Apex metadata exceeds the component limit."
+            )
+        names = [self._component_name(record, params.metadata_type) for record in records]
+        if len(set(names)) != len(names):
+            raise AdapterError("INVALID_RESPONSE", "Salesforce returned duplicate Apex components.")
+        return {"metadata_type": params.metadata_type, "components": sorted(names)}
+
+    @staticmethod
+    def _component_name(record: dict[str, Any], metadata_type: str) -> str:
+        name = record.get("Name")
+        prefix = record.get("NamespacePrefix")
+        if (
+            not isinstance(name, str)
+            or "NamespacePrefix" not in record
+            or (prefix is not None and (not isinstance(prefix, str) or not prefix))
+        ):
+            raise AdapterError("INVALID_RESPONSE", "Salesforce returned an invalid Apex name.")
+        full_name = name if prefix is None else prefix + "__" + name
+        try:
+            parsed = ops.ReadMetadataParams.model_validate(
+                {"metadata_type": metadata_type, "full_name": full_name}
+            )
+        except ValidationError:
+            raise AdapterError(
+                "INVALID_RESPONSE", "Salesforce returned an invalid Apex name."
+            ) from None
+        return parsed.full_name
 
     @staticmethod
     def _request(client: httpx.Client, method: str, path: str, **kwargs: Any) -> dict[str, Any]:

@@ -68,6 +68,8 @@ def test_gateway_discovers_reads_and_records_authenticated_results(
     assert {spec.key for spec in gateway.available_operations(agent)} == {
         ops.ORG_DESCRIBE,
         ops.DATA_QUERY,
+        ops.METADATA_LIST,
+        ops.METADATA_READ,
     }
     result = gateway.submit(
         agent,
@@ -156,7 +158,11 @@ def test_production_data_query_default_policy_remains_denied(
     adapters.register(type(case.adapter)([connection], transport=case.transport))
     db.commit()
     agent, _ = make_agent(world.prod)
-    assert {spec.key for spec in gateway.available_operations(agent)} == {ops.ORG_DESCRIBE}
+    assert {spec.key for spec in gateway.available_operations(agent)} == {
+        ops.ORG_DESCRIBE,
+        ops.METADATA_LIST,
+        ops.METADATA_READ,
+    }
     result = gateway.submit(
         agent,
         ops.DATA_QUERY,
@@ -165,3 +171,41 @@ def test_production_data_query_default_policy_remains_denied(
     )
     assert result.status is ExecutionStatus.DENIED
     assert case.calls == []
+
+
+@pytest.mark.parametrize("operation", [ops.METADATA_LIST, ops.METADATA_READ])
+def test_gateway_records_production_apex_reads_and_preserves_data_denial(
+    db: Session,
+    world: World,
+    make_agent: AgentFactory,
+    gateway: Gateway,
+    adapters: AdapterRegistry,
+    operation: str,
+) -> None:
+    from tests.unit.test_salesforce_apex_metadata import MetadataHarness
+
+    case = MetadataHarness()
+    world.prod.adapter_key = case.adapter.adapter_key
+    world.prod.external_id = case.connection.org_id
+    connection = case.connection.model_copy(
+        update={"environment_id": world.prod.id, "kind": world.prod.kind}
+    )
+    adapters.register(type(case.adapter)([connection], transport=case.transport))
+    db.commit()
+    agent, _ = make_agent(world.prod)
+    parameters = {"metadata_type": "ApexClass"}
+    if operation == ops.METADATA_READ:
+        parameters["full_name"] = "Sample"
+    result = gateway.submit(agent, operation, parameters, "apex-metadata-read")
+    assert result.status is ExecutionStatus.COMPLETED
+    assert result.result["metadata_type"] == "ApexClass"
+    if operation == ops.METADATA_READ:
+        assert result.result["body"] == "// Synthetic Apex source"
+    else:
+        assert result.result["components"] == ["Sample"]
+    count = len(case.calls)
+    denied = gateway.submit(
+        agent, ops.DATA_QUERY, {"sobject": "Account", "fields": ["Name"]}, "apex-prod-data-refusal"
+    )
+    assert denied.status is ExecutionStatus.DENIED
+    assert len(case.calls) == count

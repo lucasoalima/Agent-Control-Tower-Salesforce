@@ -5,7 +5,7 @@
 | OAuth and reads | [Contract](#contract) | backend/src/control_tower/platforms/salesforce/read_adapter.py |
 | Registration | [Activation](#activation) | backend/src/control_tower/cli.py, backend/src/control_tower/platforms/salesforce/provisioning.py |
 | Startup | [Configuration](#configuration) | backend/src/control_tower/platforms/registry.py |
-| Verification | [Tests](#tests) | backend/tests/unit/test_salesforce_read_adapter.py, backend/tests/integration/test_salesforce_read_adapter.py |
+| Verification | [Tests](#tests) | backend/tests/unit/test_salesforce_read_adapter.py, backend/tests/unit/test_salesforce_apex_metadata.py, backend/tests/integration/test_salesforce_read_adapter.py |
 | Decision | [Evidence and change](#evidence-and-change) | README.md, docs/architecture.md, docs/security-model.md |
 
 Related notes: [Architecture](architecture.md), [Security model](security-model.md),
@@ -13,8 +13,9 @@ Related notes: [Architecture](architecture.md), [Security model](security-model.
 
 ## Contract
 
-The opt-in salesforce-readonly adapter implements salesforce.org.describe and
-salesforce.data.query. It uses OAuth 2.0 client credentials on the configured
+The opt-in salesforce-readonly adapter implements salesforce.org.describe,
+salesforce.data.query and metadata.list/read for ApexClass and ApexTrigger.
+It uses OAuth 2.0 client credentials on the configured
 My Domain origin. The backend holds the client credentials and the access token; agents do not
 receive them.
 
@@ -31,6 +32,36 @@ Results contain the existing org identity or sobject/total_size/records keys.
 Record attributes are removed recursively; relationship objects are retained.
 The shared redactor and exact credential-value replacement sanitize output.
 Static errors never echo Salesforce response bodies or exception messages.
+
+## Apex class and trigger metadata
+
+salesforce.metadata.list uses a fixed Tooling API query for Name and
+NamespacePrefix, requesting at most 201 rows. A complete list of at most 200
+components is returned as metadata_type/components. Overflow, duplicate names
+and partial pages fail explicitly rather than producing an incomplete inventory.
+
+salesforce.metadata.read accepts the exact full_name returned by listing.
+Unmanaged names use a null namespace; packaged components use
+namespace__component. The query selects Name, NamespacePrefix and Body with
+a two-row bound. Missing, ambiguous or mismatched results fail explicitly.
+A null, empty or non-string Body returns SOURCE_UNAVAILABLE.
+
+The returned metadata_type/full_name/body contract matches the mock adapter.
+Source passes through the existing result redaction. Only saved Apex source is
+read; no compile, test, permission or deployment operation is available.
+
+The catalogue retains its six metadata types for mock compatibility. This REST
+adapter currently accepts only ApexClass and ApexTrigger; CustomObject, Flow,
+LightningComponentBundle and PermissionSet return UNSUPPORTED_METADATA_TYPE
+before authentication. This restriction applies to both list and read.
+
+The integration user must already have permission to read the Tooling objects.
+No Salesforce permission or metadata is changed. The API version remains an
+explicit backend setting; the implementation does not select a newer version.
+
+The implementation follows Salesforce's official [ApexClass reference](https://developer.salesforce.com/docs/platform/api-tooling/references/tooling-objects/tooling-apexclass.html)
+and [ApexTrigger reference](https://developer.salesforce.com/docs/platform/api-tooling/references/tooling-objects/tooling-apextrigger.html).
+Live-org access has not been verified; tests use synthetic HTTP responses.
 
 ## Configuration
 
@@ -86,7 +117,8 @@ No real Salesforce records are queried or exported.
 
 Redirects, proxies and automatic retries are disabled. Responses are capped at
 one MiB. Incomplete query pages are rejected; query locators are never followed.
-Metadata reads, Apex tests, permission changes and deploy are unsupported.
+Metadata types other than ApexClass/ApexTrigger, Apex tests, permission changes
+and deploy are unsupported.
 Live org authentication and permissions remain unverified.
 
 ## Evidence and change

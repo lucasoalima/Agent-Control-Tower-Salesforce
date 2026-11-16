@@ -230,10 +230,14 @@ existing binding. It does not create agents or change grants or policies.
 
 For every allowed action the adapter obtains an OAuth client-credentials token,
 checks the returned instance origin and queries the authenticated org identity.
-A mismatched org is refused before a data query. Only org.describe and data.query
-are supported. Structured query parameters are revalidated before SOQL is built.
-There is no free-form query, pagination, metadata, test or write handler.
+A mismatched org is refused before any data or metadata query. The adapter
+supports org.describe, data.query and metadata.list/read for ApexClass and
+ApexTrigger. Parameters are revalidated before bounded queries are compiled.
+There is no free-form query, pagination, test or write handler.
 
 The HTTP client disables redirects and environment proxies, bounds responses
 and makes no automatic retries. Each action obtains a token; token caching and
-refresh are not implemented. See [Salesforce reads](salesforce-read-adapter.md).
+refresh are not implemented. Apex metadata uses fixed Tooling API queries;
+lists exceeding 200 components and partial pages are refused. Component reads
+verify the returned name and namespace before returning source. Other metadata
+types fail before OAuth. See [Salesforce reads](salesforce-read-adapter.md).

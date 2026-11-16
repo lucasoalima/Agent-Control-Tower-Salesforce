@@ -179,8 +179,9 @@ returned by a fixed Organization query must also match. No remote URL is followe
 from an authentication response, redirect or query locator. Identifier schemas
 are revalidated inside the adapter before constructing its bounded SOQL.
 
-Only org.describe and data.query have handlers. Unsupported operations are
-refused before any OAuth or API request. Existing policies still apply, including
+Org and data reads plus metadata.list/read for ApexClass and ApexTrigger have
+handlers. Other metadata types and unsupported operations are refused before
+any OAuth or API request. Existing policies still apply, including
 the default production data.query denial. API data access also depends on the
 integration user's Salesforce permissions; the api OAuth scope alone is not a
 read-only permission boundary.
@@ -189,3 +190,9 @@ Remote errors use static messages. Results omit record attributes, apply the
 shared redactor and replace the exact OAuth and client credential values, even
 when those values do not match a known secret pattern. Live org behaviour has
 not been verified: all development uses synthetic records and HTTP mocks.
+
+Apex listing is limited to 200 components and refuses partial or overflowing
+responses. Reads select one exact name and namespace, verify the returned
+identity and report unavailable source explicitly. No test or write operation is
+added. The shared six-type metadata schema remains compatible with the mock;
+the REST adapter refuses the four other types with UNSUPPORTED_METADATA_TYPE.
